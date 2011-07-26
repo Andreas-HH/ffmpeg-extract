@@ -1103,9 +1103,18 @@ av_cold int ff_h264_decode_init(AVCodecContext *avctx){
         s->avctx->has_b_frames = h->sps.num_reorder_frames;
         s->low_delay = 0;
     }
+    
+    init_features(h->feature_context);
 
     return 0;
 }
+
+void init_features(H264FeatureContext* feature_context) {
+  for (int i = 0; i < 100; i++)
+    feature_context->vec->v[i] = 0.;
+  
+  feature_context->N = 0;
+}//*/
 
 #define IN_RANGE(a, b, size) (((a) >= (b)) && ((a) < ((b)+(size))))
 static void copy_picture_range(Picture **to, Picture **from, int count, MpegEncContext *new_base, MpegEncContext *old_base)
