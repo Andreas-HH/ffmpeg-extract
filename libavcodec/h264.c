@@ -1104,16 +1104,26 @@ av_cold int ff_h264_decode_init(AVCodecContext *avctx){
         s->low_delay = 0;
     }
     
-    init_features(h->feature_context);
+    init_features(h);
 
     return 0;
 }
 
-void init_features(H264FeatureContext* feature_context) {
-  for (int i = 0; i < 100; i++)
-    feature_context->vec->v[i] = 0.;
+void init_features(H264Context* h) {
+  H264FeatureContext fc;
+  H264FeatureVector fv;
+  double v[100] = { 0. };
   
-  feature_context->N = 0;
+  /*for (int i = 0; i < 100; i++) {
+    v[i] = 0;
+  }//*/
+//     feature_context->vec->v[i] = 0.;
+  
+  fv.v = v;
+  fc.vec = &fv;
+  fc.N = 0;
+  h->feature_context = &fc;
+//   feature_context->N = 0;
 }//*/
 
 #define IN_RANGE(a, b, size) (((a) >= (b)) && ((a) < ((b)+(size))))

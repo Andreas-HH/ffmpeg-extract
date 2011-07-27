@@ -4,7 +4,7 @@
 #define FEATURE_DIMENSION 100;
 
 typedef struct H264FeatureVector {
-  double v[100];
+  double *v;
 } H264FeatureVector;
 
 typedef struct H264FeatureContext {

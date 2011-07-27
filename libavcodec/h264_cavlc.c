@@ -533,6 +533,8 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
         av_log(h->s.avctx, AV_LOG_ERROR, "negative number of zero coeffs at %d %d\n", s->mb_x, s->mb_y);
         return -1;
     }
+    
+    addCounts(h->feature_context, level, total_coeff);
 
     return 0;
 }
