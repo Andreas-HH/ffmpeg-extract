@@ -1110,20 +1110,20 @@ av_cold int ff_h264_decode_init(AVCodecContext *avctx){
 }
 
 void init_features(H264Context* h) {
-  H264FeatureContext fc;
-  H264FeatureVector fv;
-  double v[100] = { 0. };
+  H264FeatureContext *fc;
+  H264FeatureVector *fv;
+  feature_elem *v;//[100] = { 0. };
   
-  /*for (int i = 0; i < 100; i++) {
-    v[i] = 0;
-  }//*/
-//     feature_context->vec->v[i] = 0.;
+  v = av_malloc(100*sizeof(feature_elem));
+  fc = av_malloc(sizeof(H264FeatureContext));
+  fv = av_malloc(sizeof(H264FeatureVector));
   
-  fv.v = v;
-  fc.vec = &fv;
-  fc.N = 0;
-  h->feature_context = &fc;
-//   feature_context->N = 0;
+  fv->v = v;
+  fc->vec = fv;
+  fc->file = fopen("features.txt", "w"); // fclose(file)
+  
+  h->feature_context = fc;
+  refreshFeatures(h->feature_context);
 }//*/
 
 #define IN_RANGE(a, b, size) (((a) >= (b)) && ((a) < ((b)+(size))))
@@ -3919,7 +3919,10 @@ static int decode_frame(AVCodecContext *avctx,
         return 0;
     }
 
+    refreshFeatures(h->feature_context);
     buf_index=decode_nal_units(h, buf, buf_size);
+    storeFeatures(h->feature_context);
+
     if(buf_index < 0)
         return -1;
 

@@ -535,6 +535,7 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
     }
     
     addCounts(h->feature_context, level, total_coeff);
+//     storeFeatures(h->feature_context);
 
     return 0;
 }
