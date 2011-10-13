@@ -367,6 +367,8 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
     MpegEncContext * const s = &h->s;
     static const int coeff_token_table_index[17]= {0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3};
     int level[16];
+    int run_list[16];
+    int totalZeros;
     int zeros_left, coeff_token, total_coeff, i, trailing_ones, run_before;
 
     //FIXME put trailing_onex into the context
@@ -479,14 +481,16 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
         }
     }
 
-    if(total_coeff == max_coeff)
+    if(total_coeff == max_coeff) {
         zeros_left=0;
-    else{
+	totalZeros = 0;
+    } else {
         /* FIXME: we don't actually support 4:2:2 yet. */
         if(max_coeff <= 8)
             zeros_left= get_vlc2(gb, (chroma_dc_total_zeros_vlc-1)[ total_coeff ].table, CHROMA_DC_TOTAL_ZEROS_VLC_BITS, 1);
         else
             zeros_left= get_vlc2(gb, (total_zeros_vlc-1)[ total_coeff ].table, TOTAL_ZEROS_VLC_BITS, 1);
+	totalZeros = zeros_left;
     }
 
 #define STORE_BLOCK(type) \
@@ -501,6 +505,7 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
             zeros_left -= run_before; \
             scantable -= 1 + run_before; \
             ((type*)block)[*scantable]= level[i]; \
+            run_list[i] = run_before; \
         } \
         for(;i<total_coeff;i++) { \
             scantable--; \
@@ -516,6 +521,7 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
             zeros_left -= run_before; \
             scantable -= 1 + run_before; \
             ((type*)block)[*scantable]= ((int)(level[i] * qmul[*scantable] + 32))>>6; \
+            run_list[i] = run_before; \
         } \
         for(;i<total_coeff;i++) { \
             scantable--; \
@@ -534,7 +540,7 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
         return -1;
     }
     
-    addCounts(h->feature_context, level, total_coeff);
+    addCounts(h->feature_context, level, run_list, total_coeff, totalZeros, h->s.current_picture.mb_type[h->mb_xy], h->s.mb_width*h->s.mb_y + h->s.mb_x, h->s.qscale, n);
 //     storeFeatures(h->feature_context);
 
     return 0;

@@ -1113,12 +1113,18 @@ void init_features(H264Context* h) {
   H264FeatureContext *fc;
   H264FeatureVector *fv;
   feature_elem *v;//[100] = { 0. };
+  int *mb_t;
+  int *qp;
   
   v = av_malloc(100*sizeof(feature_elem));
+  mb_t = av_malloc(396*sizeof(int));
+  qp = av_malloc(50*sizeof(int));
   fc = av_malloc(sizeof(H264FeatureContext));
   fv = av_malloc(sizeof(H264FeatureVector));
   
   fv->v = v;
+  fv->mb_t = mb_t;
+  fv->qp = qp;
   fc->vec = fv;
   fc->file = fopen("features.txt", "w"); // fclose(file)
   
