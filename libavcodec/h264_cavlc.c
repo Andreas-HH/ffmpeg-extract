@@ -37,6 +37,7 @@
 
 //#undef NDEBUG
 #include <assert.h>
+#include <libavutil/lfg.h>
 
 static const uint8_t golomb_to_inter_cbp_gray[16]={
  0, 1, 2, 4, 8, 3, 5,10,12,15, 7,11,13,14, 6, 9,
@@ -368,6 +369,7 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
     static const int coeff_token_table_index[17]= {0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3};
     int level[16];
     int run_list[16];
+    int myZerosLeft;
     int totalZeros;
     int zeros_left, coeff_token, total_coeff, i, trailing_ones, run_before;
 
@@ -492,20 +494,66 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
             zeros_left= get_vlc2(gb, (total_zeros_vlc-1)[ total_coeff ].table, TOTAL_ZEROS_VLC_BITS, 1);
 	totalZeros = zeros_left;
     }
+    
+    myZerosLeft = zeros_left;
+    for(i=1;i<total_coeff && myZerosLeft > 0;i++) {
+      if (myZerosLeft < 7)
+	run_before= get_vlc2(gb, (run_vlc-1)[myZerosLeft].table, RUN_VLC_BITS, 1);
+      else
+        run_before= get_vlc2(gb, run7_vlc.table, RUN7_VLC_BITS, 2);
+      myZerosLeft -= run_before;
+      run_list[i] = run_before;
+    }
+    
+    constructProperCoefArray(h->feature_context->tape, level, run_list, total_coeff, totalZeros, get_block_index(n), h->feature_context->vec);  // vec for min/max, prob. obsolete at some point
+    
+    if (get_block_index(n) == 1)
+      simulate_hiding_plusminus(level, total_coeff);
 
-#define STORE_BLOCK(type) \
+// #define STORE_BLOCK(type) \
+//     scantable += zeros_left + total_coeff - 1; \
+//     if(n >= LUMA_DC_BLOCK_INDEX){ \
+//         ((type*)block)[*scantable] = level[0]; \
+//         for(i=1;i<total_coeff && zeros_left > 0;i++) { \
+//             if(zeros_left < 7) \
+//                 run_before= get_vlc2(gb, (run_vlc-1)[zeros_left].table, RUN_VLC_BITS, 1); \
+//             else \
+//                 run_before= get_vlc2(gb, run7_vlc.table, RUN7_VLC_BITS, 2); \
+//             zeros_left -= run_before; \
+//             scantable -= 1 + run_before; \
+//             ((type*)block)[*scantable]= level[i]; \
+//             run_list[i] = run_before; \
+//         } \
+//         for(;i<total_coeff;i++) { \
+//             scantable--; \
+//             ((type*)block)[*scantable]= level[i]; \
+//         } \
+//     }else{ \
+//         ((type*)block)[*scantable] = ((int)(level[0] * qmul[*scantable] + 32))>>6; \
+//         for(i=1;i<total_coeff && zeros_left > 0;i++) { \
+//             if(zeros_left < 7) \
+//                 run_before= get_vlc2(gb, (run_vlc-1)[zeros_left].table, RUN_VLC_BITS, 1); \
+//             else \
+//                 run_before= get_vlc2(gb, run7_vlc.table, RUN7_VLC_BITS, 2); \
+//             zeros_left -= run_before; \
+//             scantable -= 1 + run_before; \
+//             ((type*)block)[*scantable]= ((int)(level[i] * qmul[*scantable] + 32))>>6; \
+//             run_list[i] = run_before; \
+//         } \
+//         for(;i<total_coeff;i++) { \
+//             scantable--; \
+//             ((type*)block)[*scantable]= ((int)(level[i] * qmul[*scantable] + 32))>>6; \
+//         } \
+//     }
+      
+  #define STORE_BLOCK(type) \
     scantable += zeros_left + total_coeff - 1; \
     if(n >= LUMA_DC_BLOCK_INDEX){ \
         ((type*)block)[*scantable] = level[0]; \
         for(i=1;i<total_coeff && zeros_left > 0;i++) { \
-            if(zeros_left < 7) \
-                run_before= get_vlc2(gb, (run_vlc-1)[zeros_left].table, RUN_VLC_BITS, 1); \
-            else \
-                run_before= get_vlc2(gb, run7_vlc.table, RUN7_VLC_BITS, 2); \
-            zeros_left -= run_before; \
-            scantable -= 1 + run_before; \
+            zeros_left -= run_list[i]; \
+            scantable -= 1 + run_list[i]; \
             ((type*)block)[*scantable]= level[i]; \
-            run_list[i] = run_before; \
         } \
         for(;i<total_coeff;i++) { \
             scantable--; \
@@ -514,14 +562,9 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
     }else{ \
         ((type*)block)[*scantable] = ((int)(level[0] * qmul[*scantable] + 32))>>6; \
         for(i=1;i<total_coeff && zeros_left > 0;i++) { \
-            if(zeros_left < 7) \
-                run_before= get_vlc2(gb, (run_vlc-1)[zeros_left].table, RUN_VLC_BITS, 1); \
-            else \
-                run_before= get_vlc2(gb, run7_vlc.table, RUN7_VLC_BITS, 2); \
-            zeros_left -= run_before; \
-            scantable -= 1 + run_before; \
+            zeros_left -= run_list[i]; \
+            scantable -= 1 + run_list[i]; \
             ((type*)block)[*scantable]= ((int)(level[i] * qmul[*scantable] + 32))>>6; \
-            run_list[i] = run_before; \
         } \
         for(;i<total_coeff;i++) { \
             scantable--; \
@@ -539,9 +582,8 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
         av_log(h->s.avctx, AV_LOG_ERROR, "negative number of zero coeffs at %d %d\n", s->mb_x, s->mb_y);
         return -1;
     }
-    
+
     addCounts(h->feature_context, level, run_list, total_coeff, totalZeros, h->s.current_picture.mb_type[h->mb_xy], h->s.mb_width*h->s.mb_y + h->s.mb_x, h->s.qscale, n);
-//     storeFeatures(h->feature_context);
 
     return 0;
 }

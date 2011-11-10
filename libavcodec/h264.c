@@ -1110,27 +1110,102 @@ av_cold int ff_h264_decode_init(AVCodecContext *avctx){
 }
 
 void init_features(H264Context* h) {
+  int i, j, k;
   H264FeatureContext *fc;
   H264FeatureVector *fv;
-  feature_elem *v;//[100] = { 0. };
+  int **ranges;
+  int ***N;
+  feature_elem ****v;//[100] = { 0. };
   int *mb_t;
   int *qp;
+  int *tape;
+//   int num_histograms = 16+2*(4+15);
   
-  v = av_malloc(100*sizeof(feature_elem));
-  mb_t = av_malloc(396*sizeof(int));
-  qp = av_malloc(50*sizeof(int));
-  fc = av_malloc(sizeof(H264FeatureContext));
-  fv = av_malloc(sizeof(H264FeatureVector));
+  ranges = av_malloc(3*sizeof(int*));
+  ranges[0] = av_malloc(16*sizeof(int));
+  ranges[1] = av_malloc(4*sizeof(int));
+  ranges[2] = av_malloc(15*sizeof(int));
+  setup_ranges(ranges, LUMA_RANGE, CHROMA_DC_RANGE, CHROMA_AC_RANGE);
   
-  fv->v = v;
+  N = av_malloc(QP_RANGE*sizeof(int**));
+  v = av_malloc(QP_RANGE*sizeof(feature_elem***));
+  for (i = 0; i < QP_RANGE; i++) {
+    N[i] = av_malloc(3*sizeof(int*));
+    v[i] = av_malloc(3*sizeof(feature_elem**));   // 5 types of blocks (Luma + Chroma AC/DC)
+    for (j = 0; j < 3; j++) {
+      N[i][j] = av_malloc(num_coefs[j]*sizeof(int));
+      v[i][j] = av_malloc(num_coefs[j]*sizeof(feature_elem*));
+      for (k = 0; k < num_coefs[j]; k++) {
+        v[i][j][k] = av_malloc(2*ranges[j][k]*sizeof(feature_elem));   // histogram_range
+      }
+    }
+  }
+//   v     =   av_malloc(USED_PIXELS*FEATURE_DIMENSION*QP_RANGE*sizeof(feature_elem));
+  mb_t  =   av_malloc(396*sizeof(int));
+  qp    =   av_malloc(50*sizeof(int));
+  fc    =   av_malloc(sizeof(H264FeatureContext));
+  fv    =   av_malloc(sizeof(H264FeatureVector));
+  tape  =   av_malloc(16*sizeof(int));
+  
+//   memset(v, 0, USED_PIXELS*FEATURE_DIMENSION*QP_RANGE);
+//   memset(mb_t, 0, 396);
+//   memset(qp, 0, 50);
+  
+//   fv->v = v;
+//   fv->num_histograms = num_histograms;
+  fv->N = N;
+  fv->histogram = v;
   fv->mb_t = mb_t;
   fv->qp = qp;
   fc->vec = fv;
   fc->file = fopen("features.txt", "w"); // fclose(file)
+  fc->tape = tape;
+  fc->histogram_ranges = ranges;
+  
+  fc->i_slices = 0;
+  fc->p_slices = 0;
+  fc->b_slices = 0;
+  fv->vector_num = 0;
+  fc->refreshed = 0;
   
   h->feature_context = fc;
-  refreshFeatures(h->feature_context);
+//   refreshFeatures(h->feature_context);
 }//*/
+
+void close_features(H264Context* h) {
+  int i, j, k;
+  H264FeatureContext *fc = h->feature_context;
+  
+  storeCounts(fc);
+  
+  fflush(fc->file);
+  fclose(fc->file);
+  
+  av_free(fc->histogram_ranges[0]);
+  av_free(fc->histogram_ranges[1]);
+  av_free(fc->histogram_ranges[2]);
+  av_free(fc->histogram_ranges);
+  
+  for (i = 0; i < QP_RANGE; i++) {
+    for (j = 0; j < 3; j++) {
+      for (k = 0; k < num_coefs[j]; k++) {
+        av_free(fc->vec->histogram[i][j][k]);
+      }
+      av_free(fc->vec->N[i][j]);
+      av_free(fc->vec->histogram[i][j]);
+    }
+    av_free(fc->vec->N[i]);
+    av_free(fc->vec->histogram[i]);
+  }
+  av_free(fc->vec->N);
+  av_free(fc->vec->histogram);
+  
+  av_free(fc->tape);
+  av_free(fc->vec->mb_t);
+  av_free(fc->vec->qp);
+  av_free(fc->vec);
+  av_free(fc);
+}
 
 #define IN_RANGE(a, b, size) (((a) >= (b)) && ((a) < ((b)+(size))))
 static void copy_picture_range(Picture **to, Picture **from, int count, MpegEncContext *new_base, MpegEncContext *old_base)
@@ -2551,6 +2626,17 @@ static int decode_slice_header(H264Context *h, H264Context *h0){
     }
     h->slice_type= slice_type;
     h->slice_type_nos= slice_type & 3;
+    
+    if (slice_type == AV_PICTURE_TYPE_I) {
+      h->feature_context->vec->slice_type = TYPE_I_SLICE;
+      h->feature_context->i_slices++;
+    } else if (slice_type == AV_PICTURE_TYPE_P) {
+      h->feature_context->vec->slice_type = TYPE_P_SLICE;
+      h->feature_context->p_slices++;
+    } else if (slice_type == AV_PICTURE_TYPE_B) {
+      h->feature_context->vec->slice_type = TYPE_B_SLICE;
+      h->feature_context->b_slices++;
+    }
 
     s->pict_type= h->slice_type; // to make a few old functions happy, it's wrong though
 
@@ -3734,6 +3820,8 @@ static int decode_nal_units(H264Context *h, const uint8_t *buf, int buf_size){
                 av_log(h->s.avctx, AV_LOG_ERROR, "Invalid mix of idr and non-idr slices");
                 return -1;
             }
+            storeCounts(h->feature_context);
+            refreshFeatures(h->feature_context);
             idr(h); //FIXME ensure we don't loose some frames if there is reordering
         case NAL_SLICE:
             init_get_bits(&hx->s.gb, ptr, bit_length);
@@ -3925,9 +4013,9 @@ static int decode_frame(AVCodecContext *avctx,
         return 0;
     }
 
-    refreshFeatures(h->feature_context);
+//     refreshFeatures(h->feature_context);
     buf_index=decode_nal_units(h, buf, buf_size);
-    storeFeatures(h->feature_context);
+//     storeFeatures(h->feature_context);
 
     if(buf_index < 0)
         return -1;
@@ -4180,6 +4268,7 @@ av_cold int ff_h264_decode_end(AVCodecContext *avctx)
     H264Context *h = avctx->priv_data;
     MpegEncContext *s = &h->s;
 
+    close_features(h);
     ff_h264_free_context(h);
 
     MPV_common_end(s);
