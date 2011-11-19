@@ -583,7 +583,7 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
         return -1;
     }
 
-    addCounts(h->feature_context, level, run_list, total_coeff, totalZeros, h->s.current_picture.mb_type[h->mb_xy], h->s.mb_width*h->s.mb_y + h->s.mb_x, h->s.qscale, n);
+    addCounts(h->feature_context, h->s.qscale, n);
 
     return 0;
 }

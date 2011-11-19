@@ -33,26 +33,6 @@ void simulate_hiding_plusminus(int* coefs, int size) {
 void setup_ranges(int **ranges, int luma, int chroma_dc, int chroma_ac) {
   int i;
   
-//   for (i = 0; i < luma; i++) {
-//      ranges[0][i] = 30;
-// //     ranges[0][i] = luma - i;
-//   }
-//   for (; i < 16; i++) {
-//     ranges[0][i] = 30; // 0
-//   }
-//   
-//   for (i = 0; i < 4; i++) {
-// //     ranges[1][i] = chroma_dc;
-//     ranges[1][i] = 20;
-//   }
-//   
-//   for (i = 0; i < luma; i++) {
-// //     ranges[2][i] = chroma_ac - i;
-//     ranges[2][i] = 20;
-//   }
-//   for (; i < 15; i++) {
-//     ranges[2][i] = 20; // 0
-//   }
   for (i = 0; i < 16; i++) {
     if (luma_ranges[i] > 2)
       ranges[0][i] = luma_ranges[i];
@@ -110,14 +90,16 @@ void constructProperCoefArray(int *result, int *level, int *run_before, int tota
   }
 }
 
-void addCounts(H264FeatureContext *fc, int *level, int *run_before, int total_coeff, int totalZeros, int mb_type, int mb_xy, int qp, int n) {
-  int i;
+void addCounts(H264FeatureContext *fc, int qp, int n) {
+  int i, l, r;
   int coef_index;
   int *tape = fc->tape;
   int blocknum = get_block_index(n);
   int qp_index = qp - QP_OFFSET;
+  int sl = fc->slice_type;
   
-  if (fc->vec->slice_type != TYPE_P_SLICE) return;  // add only P-Slices 
+//   if (sl != TYPE_P_SLICE) return;  // add only P-Slices 
+  if (sl == TYPE_I_SLICE) return;
   
   fc->vec->qp[qp]++;
   if (blocknum == -1) {
@@ -141,100 +123,125 @@ void addCounts(H264FeatureContext *fc, int *level, int *run_before, int total_co
       coef_index = coef_index + fc->histogram_ranges[blocknum][i]-1;
       if (coef_index > 2*fc->histogram_ranges[blocknum][i]-1) continue;
     }
-    fc->vec->N[qp_index][blocknum][i]++;
-    fc->vec->histogram[qp_index][blocknum][i][coef_index]++;
+//     fc->vec->N[qp_index][blocknum][i]++;
+    fc->vec->histograms[sl][qp_index][blocknum][i][coef_index]++;
   }
-//   fc->vec->qp[qp]++;
-
-//   if (mb_type&0x0002)
-//     fprintf(fc->file, "%i: is intra 16x16! ", mb_xy);
-//   else
-//     fprintf(fc->file, "%i:                 ", mb_xy);
-//   
-//   fprintf(fc->file, "n = %i, total_coeff = %i, totalZeros = %i ", n, total_coeff, totalZeros);
-//   for (i = 0; i < total_coeff; i++) {
-//     if (level[i] < fc->vec->min) fc->vec->min = level[i];
-//     if (level[i] > fc->vec->max) fc->vec->max = level[i];
-//     if (level[i] >= -50 && level[i] < 50) {
-//       fc->vec->v[level[i]+50] += 1;
-//     }
-//     fprintf(fc->file, "(%i, %i)", level[i], run_before[i]);
-//   }
-//   fprintf(fc->file, "coef = {");
-//   for (i = 0; i < 16; i++) {
-//     fprintf(fc->file, "%i, ", tape[i]);
-//   }
-//   fprintf(fc->file, "} ");
-//   fprintf(fc->file, "\n");
-// //   fc->vec->N++;
-//   
-//   if (mb_xy < 396) {
-//     fc->vec->mb_t[mb_xy] = mb_type;
-//   } else {
-//     printf("Etwas stimmt hiuer nicht! %d \n", mb_xy);
-//   }
   
-//   if (0 <= n && n <= 15)   blocknum = n;   // Luma default
-//   if (n == 49)             blocknum = 16;  // Cr DC
-//   if (16 <= n && n <= 19)  blocknum = n;   // Cr AC
-//   if (n == 50)             blocknum = 19;  // Cr DC
-//   if (16 <= n && n <= 19)  blocknum = n;   // Cr AC
-
-//   fc->vec->v[(qp-17)*1600 + blocknum*100 + 50]
+  //pairs
+  for (i = 0; i < num_coefs[blocknum]-1; i++) {
+    l = tape[i] + fc->histogram_ranges[blocknum][0];                // we are allowed to exceed the local range here
+    r = tape[i+1] + fc->histogram_ranges[blocknum][1];              // space is limited by ranges of first two coefs
+    if (l < 0 || l > 2*fc->histogram_ranges[blocknum][0]) continue;
+    if (r < 0 || r > 2*fc->histogram_ranges[blocknum][1]) continue;
+    fc->vec->pairs[sl][qp_index][blocknum][l][r]++;
+  }
 }
 
 void storeCounts(H264FeatureContext *fc) {
   int i, j, k, l;
+//   if (fc->slice_type != TYPE_P_SLICE) return;
   
   if (!fc->refreshed) return;  // avoid zero-vector at the beginning
   
-  fprintf(fc->file, "I-Slices: %i, P-Slices: %i, B-Slices: %i    ", fc->i_slices, fc->p_slices, fc->b_slices);
+  fprintf(fc->logfile, "I-Slices: %i, P-Slices: %i, B-Slices: %i    ", fc->i_slices, fc->p_slices, fc->b_slices);
   
-  fprintf(fc->file, "min = %i, max = %i, vector_num = %i, slice_type = %i, histograms:\n", fc->vec->min, fc->vec->max, fc->vec->vector_num, fc->vec->slice_type);
+  fprintf(fc->logfile, "min = %i, max = %i, vector_num = %i, slice_type = %i, histograms:\n", fc->vec->min, fc->vec->max, fc->vec->vector_num, fc->slice_type);
     // store qp histogram
   for (i = 0; i < 50; i++) {
     if (i == 20) 
-      fprintf(fc->file, " [%u] ", fc->vec->qp[i]);
+      fprintf(fc->logfile, " [%u] ", fc->vec->qp[i]);
     else 
-      fprintf(fc->file, " %u ", fc->vec->qp[i]);
+      fprintf(fc->logfile, " %u ", fc->vec->qp[i]);
   }
-  fprintf(fc->file, "\n");
-//   for (i = 0; i < 100; i++) {
-//     fprintf(fc->file, " %i ", fc->vec->v[i]);
-//   }
-//   fprintf(fc->file, "\n");
+  fprintf(fc->logfile, "\n");
+  
   for (i = 0; i < QP_RANGE; i++) {
     for (j = 0; j < 3; j++) {
       for (k = 0; k < num_coefs[j]; k++) {
 	// don't save zero hestograms
-	if (fc->vec->N[i][j][k] == 0) continue;
+ 	if (fc->histogram_ranges[j][k] == 0 || fc->vec->histograms[0][i][j][k][fc->histogram_ranges[j][k]] == 0) continue;
+// 	if (fc->vec->N[i][j][k] == 0) continue;
 	
-	fprintf(fc->file, "qp = %i, blockn = %i, N = %i --- ", QP_OFFSET + i, j, fc->vec->N[i][j][k]);
+	fprintf(fc->logfile, "qp = %i, blockn = %i, --- ", QP_OFFSET + i, j);//, fc->vec->N[i][j][k]);
 	for (l = 0; l < fc->histogram_ranges[j][k]; l++) {
-	  fprintf(fc->file, "%i ", fc->vec->histogram[i][j][k][l]);
+	  fprintf(fc->logfile, "%i ", fc->vec->histograms[0][i][j][k][l]);
 	}
-	fprintf(fc->file, "[0] ");
+	fprintf(fc->logfile, "[0] ");
 	for (l = fc->histogram_ranges[j][k]; l < 2*fc->histogram_ranges[j][k]; l++) {
-	  fprintf(fc->file, "%i ", fc->vec->histogram[i][j][k][l]);
+	  fprintf(fc->logfile, "%i ", fc->vec->histograms[0][i][j][k][l]);
 	}
-	fprintf(fc->file, "\n");
+	fprintf(fc->logfile, "\n");
       }
     }
   }
   
   fc->refreshed = 0;
-  
-//   // store mb types
-//   for (i = 0; i < 396; i++) {
-//     fprintf(fc->file, " %u ", fc->vec->mb_t[i]);
-//   }//*/
-//   fprintf(fc->file, "\n");
-  
-//   fflush(fc->file);
 }
 
+void storeFeatureVectors(H264FeatureContext* fc) {
+  int sl, i, j, k, l;
+  int count_h, count_p;
+  int N_h, N_p;
+  long pos;
+  
+  if (!fc->refreshed) return;
+  
+  for (sl = 0; sl < 2; sl++) {
+    count_h = 0;
+    count_p = 0;
+    N_h = 0;
+    N_p = 0;
+    for (i = 0; i < QP_RANGE; i++) {
+      for (j = 0; j < 3; j++) {
+        // histograms
+        for (k = 0; k < num_coefs[j]; k++) {
+          for (l = 0; l < 2*fc->histogram_ranges[j][k]; l++) {
+//             printf("(%i, %i, %i, %i) -- (%i, %i)\n", i, j, k, l, count_h, count_p);
+             fc->vec->vector_histograms[count_h] = (double) fc->vec->histograms[sl][i][j][k][l];
+            count_h++;
+             N_h += fc->vec->pairs[sl][i][j][k][l];
+//             fprintf(fc->files_hist[sl], "%i ", fc->vec->histograms[sl][i][j][k][l]);
+          }
+        }
+        // pairs
+        for (k = 0; k < 2*fc->histogram_ranges[j][0]+1; k++) {
+          for (l = 0; l < 2*fc->histogram_ranges[j][1]+1; l++) {
+            if (k == fc->histogram_ranges[j][0] && l == fc->histogram_ranges[j][1]) continue; // 00: &&; 0x x0: ||
+//             printf("(%i, %i)\n", count_h, count_p);
+             fc->vec->vector_pairs[count_p] = (double) fc->vec->pairs[sl][i][j][k][l];
+            count_p++;
+             N_p += fc->vec->pairs[sl][i][j][k][l];
+//             fprintf(fc->files_pair[sl], "%i ", fc->vec->pairs[sl][i][j][k][l]);
+          }
+        }
+      }
+    }
+//     printf("(%i, %i)\n", count_h, count_p);
+    
+    for (i = 0; i < fc->vec->vector_histograms_dim; i++)
+      fc->vec->vector_histograms[i] *= ((double) fc->vec->vector_histograms_dim)/((double) N_h);
+    for (i = 0; i < fc->vec->vector_pairs_dim; i++)
+      fc->vec->vector_pairs[i] *= ((double) fc->vec->vector_pairs_dim)/((double) N_p);
+  
+    pos = ftell(fc->files_hist[sl]);
+    if (pos == 0L)
+      fwrite(&(fc->vec->vector_histograms_dim), sizeof(int), 1, fc->files_hist[sl]);
+    fwrite(fc->vec->vector_histograms, sizeof(double), fc->vec->vector_histograms_dim, fc->files_hist[sl]);
+    pos = ftell(fc->files_pair[sl]);
+    if (pos == 0L)
+      fwrite(&(fc->vec->vector_pairs_dim), sizeof(int), 1, fc->files_pair[sl]);
+    fwrite(fc->vec->vector_pairs, sizeof(double), fc->vec->vector_pairs_dim, fc->files_pair[sl]);
+//     fprintf(fc->files_hist[sl], "\n");
+//     fprintf(fc->files_pair[sl], "\n");
+  }
+//   printf("fertig!\n");
+  
+  fc->refreshed = 0;
+}
+
+
 void refreshFeatures(H264FeatureContext* feature_context) {
-  int i, j, k, l;
+  int i, j, k, l, sl;
   
   feature_context->i_slices = 0;
   feature_context->p_slices = 0;
@@ -242,27 +249,29 @@ void refreshFeatures(H264FeatureContext* feature_context) {
   feature_context->vec->vector_num++;
   feature_context->vec->min = 0;
   feature_context->vec->max = 0;
-//   feature_context->vec->vector_num = 0;
-//   feature_context->vec->N = 0;
-//   for (int i = 0; i < 100; i++) {
-//     feature_context->vec->v[i] = 0;
-//   }
-//   for (i = 0; i < feature_context->vec->num_histograms; i++) {
-//     feature_context->vec->N[i] = 0;
-//   }
-  for (i = 0; i < QP_RANGE; i++) {
-    for (j = 0; j < 3; j++) {
-      for (k = 0; k < num_coefs[j]; k++) {
-	feature_context->vec->N[i][j][k] = 0;
-	for (l = 0; l < 2*feature_context->histogram_ranges[j][k]; l++) {
-	  feature_context->vec->histogram[i][j][k][l] = 0;
-	}
+
+  for (sl = 0; sl < 2; sl++) {
+    for (i = 0; i < QP_RANGE; i++) {
+      for (j = 0; j < 3; j++) {
+        // histograms
+        for (k = 0; k < num_coefs[j]; k++) {
+//           feature_context->vec->N[i][j][k] = 0;
+          for (l = 0; l < 2*feature_context->histogram_ranges[j][k]; l++) {
+            feature_context->vec->histograms[sl][i][j][k][l] = 0;
+          }
+        }
+        // pairs
+        for (k = 0; k < 2*feature_context->histogram_ranges[j][0]; k++) {
+          for (l = 0; l < 2*feature_context->histogram_ranges[j][1]; l++) {
+            feature_context->vec->pairs[sl][i][j][k][l] = 0;
+          }
+        }
       }
     }
   }
-  for (i = 0; i < 396; i++) {
-    feature_context->vec->mb_t[i] = 0;
-  }
+//   for (i = 0; i < 396; i++) {
+//     feature_context->vec->mb_t[i] = 0;
+//   }
   for (i = 0; i < 50; i++) {
     feature_context->vec->qp[i] = 0;
   }

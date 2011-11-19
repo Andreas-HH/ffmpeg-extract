@@ -1110,98 +1110,151 @@ av_cold int ff_h264_decode_init(AVCodecContext *avctx){
 }
 
 void init_features(H264Context* h) {
-  int i, j, k;
+  int i, j, k, sl;
   H264FeatureContext *fc;
   H264FeatureVector *fv;
   int **ranges;
-  int ***N;
-  feature_elem ****v;//[100] = { 0. };
-  int *mb_t;
+//   int ***N;
+  int *****v;
+  int *****w;
+  int hist_dim = 0;
+  int pair_dim = 0;
+//   int *mb_t;
   int *qp;
   int *tape;
 //   int num_histograms = 16+2*(4+15);
   
-  ranges = av_malloc(3*sizeof(int*));
+  ranges    = av_malloc(3*sizeof(int*));
   ranges[0] = av_malloc(16*sizeof(int));
   ranges[1] = av_malloc(4*sizeof(int));
   ranges[2] = av_malloc(15*sizeof(int));
   setup_ranges(ranges, LUMA_RANGE, CHROMA_DC_RANGE, CHROMA_AC_RANGE);
   
-  N = av_malloc(QP_RANGE*sizeof(int**));
-  v = av_malloc(QP_RANGE*sizeof(feature_elem***));
-  for (i = 0; i < QP_RANGE; i++) {
-    N[i] = av_malloc(3*sizeof(int*));
-    v[i] = av_malloc(3*sizeof(feature_elem**));   // 5 types of blocks (Luma + Chroma AC/DC)
-    for (j = 0; j < 3; j++) {
-      N[i][j] = av_malloc(num_coefs[j]*sizeof(int));
-      v[i][j] = av_malloc(num_coefs[j]*sizeof(feature_elem*));
-      for (k = 0; k < num_coefs[j]; k++) {
-        v[i][j][k] = av_malloc(2*ranges[j][k]*sizeof(feature_elem));   // histogram_range
+//   N = av_malloc(QP_RANGE*sizeof(int**));
+  v = av_malloc(2*sizeof(int****));
+  w = av_malloc(2*sizeof(int****));
+  for (sl = 0; sl < 2; sl++) {
+    v[sl] = av_malloc(QP_RANGE*sizeof(int***));
+    w[sl] = av_malloc(QP_RANGE*sizeof(int***));
+    for (i = 0; i < QP_RANGE; i++) {
+  //     N[i] = av_malloc(3*sizeof(int*));
+      // setup histograms
+      v[sl][i] = av_malloc(3*sizeof(int**));   // 3 types of blocks (Luma + Chroma DC/AC)
+      w[sl][i] = av_malloc(3*sizeof(int**));
+      for (j = 0; j < 3; j++) {
+  //       N[i][j] = av_malloc(num_coefs[j]*sizeof(int));
+        // setup histograms
+        v[sl][i][j] = av_malloc(num_coefs[j]*sizeof(int*));
+        for (k = 0; k < num_coefs[j]; k++) {
+          v[sl][i][j][k] = av_malloc(2*ranges[j][k]*sizeof(int));
+        }
+        // setup pairs
+        w[sl][i][j] = av_malloc((2*ranges[j][0]+1)*sizeof(int*)); // +1 for the zero
+        for (k = 0; k < 2*ranges[j][0]+1; k++) {
+          w[sl][i][j][k] = av_malloc((2*ranges[j][1]+1)*sizeof(int));
+        }
       }
     }
   }
+  
+  for (i = 0; i < 3; i++) { // scan through blocks
+    for (j = 0; j < num_coefs[i]; j++) {
+      hist_dim += 2*ranges[i][j];
+    }
+    pair_dim += (2*ranges[i][0]+1) * (2*ranges[i][1]+1) - 1; // (0,0) not included
+  }
 //   v     =   av_malloc(USED_PIXELS*FEATURE_DIMENSION*QP_RANGE*sizeof(feature_elem));
-  mb_t  =   av_malloc(396*sizeof(int));
+//   mb_t  =   av_malloc(396*sizeof(int));
   qp    =   av_malloc(50*sizeof(int));
   fc    =   av_malloc(sizeof(H264FeatureContext));
   fv    =   av_malloc(sizeof(H264FeatureVector));
-  tape  =   av_malloc(16*sizeof(int));
+  tape  =   av_malloc(16*sizeof(int));  
+//   fv->N = N;
   
-//   memset(v, 0, USED_PIXELS*FEATURE_DIMENSION*QP_RANGE);
-//   memset(mb_t, 0, 396);
-//   memset(qp, 0, 50);
+  fv->vector_histograms_dim = QP_RANGE*hist_dim;
+  fv->vector_pairs_dim      = QP_RANGE*pair_dim;
+  fv->vector_histograms     = av_malloc(fv->vector_histograms_dim*sizeof(double));
+  fv->vector_pairs          = av_malloc(fv->vector_pairs_dim*sizeof(double));
+  fv->histograms     = v;
+  fv->pairs          = w;
+//   fv->mb_t         = mb_t;
+  fv->qp             = qp;
+  fc->vec            = fv;
+  fc->logfile        = fopen("features.log", "w"); // fclose(file)
+  fc->files_hist     = av_malloc(2*sizeof(FILE*));
+  fc->files_pair     = av_malloc(2*sizeof(FILE*));
+  fc->files_hist[0]  = fopen("p_histograms.fv", "w");
+  fc->files_hist[1]  = fopen("b_histograms.fv", "w");
+  fc->files_pair[0]  = fopen("p_pairs.fv", "w");
+  fc->files_pair[1]  = fopen("b_pairs.fv", "w");
   
-//   fv->v = v;
-//   fv->num_histograms = num_histograms;
-  fv->N = N;
-  fv->histogram = v;
-  fv->mb_t = mb_t;
-  fv->qp = qp;
-  fc->vec = fv;
-  fc->file = fopen("features.txt", "w"); // fclose(file)
+//   fc->p_hist = fopen("p_histograms.fv", "a");
+//   fc->p_pair = fopen("p_pairs.fv", "a");
+//   fc->b_hist = fopen("b_histograms.fv", "a");
+//   fc->b_pair = fopen("b_pairs.fv", "a");
   fc->tape = tape;
   fc->histogram_ranges = ranges;
   
-  fc->i_slices = 0;
-  fc->p_slices = 0;
-  fc->b_slices = 0;
-  fv->vector_num = 0;
-  fc->refreshed = 0;
+  fc->i_slices    = 0;
+  fc->p_slices    = 0;
+  fc->b_slices    = 0;
+  fv->vector_num  = 0;
+  fc->refreshed   = 0;
   
   h->feature_context = fc;
-//   refreshFeatures(h->feature_context);
-}//*/
+}
 
 void close_features(H264Context* h) {
-  int i, j, k;
+  int i, j, k, sl;
   H264FeatureContext *fc = h->feature_context;
   
-  storeCounts(fc);
+//   storeCounts(fc);
+  storeFeatureVectors(fc);
   
-  fflush(fc->file);
-  fclose(fc->file);
+  fflush(fc->logfile);
+  fflush(fc->files_hist[0]);
+  fflush(fc->files_hist[1]);
+  fflush(fc->files_pair[0]);
+  fflush(fc->files_pair[1]);
+  fclose(fc->logfile);
+  fclose(fc->files_hist[0]);
+  fclose(fc->files_hist[1]);
+  fclose(fc->files_pair[0]);
+  fclose(fc->files_pair[1]);
+  
+  for (sl = 0; sl < 2; sl++) {
+    for (i = 0; i < QP_RANGE; i++) {
+      for (j = 0; j < 3; j++) {
+        for (k = 0; k < num_coefs[j]; k++) {
+          av_free(fc->vec->histograms[sl][i][j][k]);
+        }
+        for (k = 0; k < 2*fc->histogram_ranges[j][0]+1; k++) {
+          av_free(fc->vec->pairs[sl][i][j][k]);
+        }
+  //       av_free(fc->vec->N[i][j]);
+        av_free(fc->vec->histograms[sl][i][j]);
+        av_free(fc->vec->pairs[sl][i][j]);
+      }
+  //     av_free(fc->vec->N[i]);
+      av_free(fc->vec->histograms[sl][i]);
+      av_free(fc->vec->pairs[sl][i]);
+    }
+  //   av_free(fc->vec->N);
+    av_free(fc->vec->histograms[sl]);
+    av_free(fc->vec->pairs[sl]);
+  }
+  av_free(fc->vec->histograms);
+  av_free(fc->vec->pairs);
+  av_free(fc->vec->vector_histograms);
+  av_free(fc->vec->vector_pairs);
   
   av_free(fc->histogram_ranges[0]);
   av_free(fc->histogram_ranges[1]);
   av_free(fc->histogram_ranges[2]);
   av_free(fc->histogram_ranges);
   
-  for (i = 0; i < QP_RANGE; i++) {
-    for (j = 0; j < 3; j++) {
-      for (k = 0; k < num_coefs[j]; k++) {
-        av_free(fc->vec->histogram[i][j][k]);
-      }
-      av_free(fc->vec->N[i][j]);
-      av_free(fc->vec->histogram[i][j]);
-    }
-    av_free(fc->vec->N[i]);
-    av_free(fc->vec->histogram[i]);
-  }
-  av_free(fc->vec->N);
-  av_free(fc->vec->histogram);
-  
   av_free(fc->tape);
-  av_free(fc->vec->mb_t);
+//   av_free(fc->vec->mb_t);
   av_free(fc->vec->qp);
   av_free(fc->vec);
   av_free(fc);
@@ -2628,13 +2681,13 @@ static int decode_slice_header(H264Context *h, H264Context *h0){
     h->slice_type_nos= slice_type & 3;
     
     if (slice_type == AV_PICTURE_TYPE_I) {
-      h->feature_context->vec->slice_type = TYPE_I_SLICE;
+      h->feature_context->slice_type = TYPE_I_SLICE;
       h->feature_context->i_slices++;
     } else if (slice_type == AV_PICTURE_TYPE_P) {
-      h->feature_context->vec->slice_type = TYPE_P_SLICE;
+      h->feature_context->slice_type = TYPE_P_SLICE;
       h->feature_context->p_slices++;
     } else if (slice_type == AV_PICTURE_TYPE_B) {
-      h->feature_context->vec->slice_type = TYPE_B_SLICE;
+      h->feature_context->slice_type = TYPE_B_SLICE;
       h->feature_context->b_slices++;
     }
 
@@ -3820,7 +3873,9 @@ static int decode_nal_units(H264Context *h, const uint8_t *buf, int buf_size){
                 av_log(h->s.avctx, AV_LOG_ERROR, "Invalid mix of idr and non-idr slices");
                 return -1;
             }
-            storeCounts(h->feature_context);
+//             storeCounts(h->feature_context);
+//             h->feature_context->refreshed = 1;
+            storeFeatureVectors(h->feature_context);
             refreshFeatures(h->feature_context);
             idr(h); //FIXME ensure we don't loose some frames if there is reordering
         case NAL_SLICE:
