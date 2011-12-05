@@ -3,7 +3,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include "ppc/util_altivec.h"
+// #include "ppc/util_altivec.h"
 // #include "mpegvideo.h"
 
 #define FEATURE_DIMENSION    100
