@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include "ppc/util_altivec.h"
 // #include "mpegvideo.h"
 
 #define FEATURE_DIMENSION    100
@@ -36,8 +37,8 @@ typedef struct H264FeatureVector {
   int *****histograms;          // [slice_type][qp][block][coef][element]
   int *****pairs;               // [slice_type][qp][block][element_left][element_right]
   
-  double vector_histograms_dim;
-  double vector_pairs_dim;
+  int vector_histograms_dim;
+  int vector_pairs_dim;
   double *vector_histograms;
   double *vector_pairs;
 } H264FeatureVector;
@@ -50,6 +51,8 @@ typedef struct H264FeatureContext {
   int i_slices;
   int p_slices;
   int b_slices;
+  int accept_blocks;  // bit at position blocknum tells if that block type is accepted or not  (accept & (1 << blocknum))
+  double p_skip;
   int **histogram_ranges;  // entry n specifies range -n..n, excluding 0 ::: [block][coef]
   FILE *logfile;
   FILE **files_hist;  // [SLICE_TYPE]

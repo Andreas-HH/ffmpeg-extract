@@ -183,6 +183,8 @@ void storeFeatureVectors(H264FeatureContext* fc) {
   int count_h, count_p;
   int N_h, N_p;
   long pos;
+  double sum_h, sum_p;
+  double scale_h, scale_p;
   
   if (!fc->refreshed) return;
   
@@ -197,9 +199,9 @@ void storeFeatureVectors(H264FeatureContext* fc) {
         for (k = 0; k < num_coefs[j]; k++) {
           for (l = 0; l < 2*fc->histogram_ranges[j][k]; l++) {
 //             printf("(%i, %i, %i, %i) -- (%i, %i)\n", i, j, k, l, count_h, count_p);
-             fc->vec->vector_histograms[count_h] = (double) fc->vec->histograms[sl][i][j][k][l];
+            fc->vec->vector_histograms[count_h] = (double) fc->vec->histograms[sl][i][j][k][l];
             count_h++;
-             N_h += fc->vec->pairs[sl][i][j][k][l];
+            N_h += fc->vec->histograms[sl][i][j][k][l];
 //             fprintf(fc->files_hist[sl], "%i ", fc->vec->histograms[sl][i][j][k][l]);
           }
         }
@@ -208,9 +210,9 @@ void storeFeatureVectors(H264FeatureContext* fc) {
           for (l = 0; l < 2*fc->histogram_ranges[j][1]+1; l++) {
             if (k == fc->histogram_ranges[j][0] && l == fc->histogram_ranges[j][1]) continue; // 00: &&; 0x x0: ||
 //             printf("(%i, %i)\n", count_h, count_p);
-             fc->vec->vector_pairs[count_p] = (double) fc->vec->pairs[sl][i][j][k][l];
+            fc->vec->vector_pairs[count_p] = (double) fc->vec->pairs[sl][i][j][k][l];
             count_p++;
-             N_p += fc->vec->pairs[sl][i][j][k][l];
+            N_p += fc->vec->pairs[sl][i][j][k][l];
 //             fprintf(fc->files_pair[sl], "%i ", fc->vec->pairs[sl][i][j][k][l]);
           }
         }
@@ -218,11 +220,24 @@ void storeFeatureVectors(H264FeatureContext* fc) {
     }
 //     printf("(%i, %i)\n", count_h, count_p);
     
+    scale_h = ((double) fc->vec->vector_histograms_dim)/((double) N_h);
     for (i = 0; i < fc->vec->vector_histograms_dim; i++)
-      fc->vec->vector_histograms[i] *= ((double) fc->vec->vector_histograms_dim)/((double) N_h);
+      fc->vec->vector_histograms[i] *= scale_h;
+    scale_p = ((double) fc->vec->vector_pairs_dim)/((double) N_p);
     for (i = 0; i < fc->vec->vector_pairs_dim; i++)
-      fc->vec->vector_pairs[i] *= ((double) fc->vec->vector_pairs_dim)/((double) N_p);
+      fc->vec->vector_pairs[i] *= scale_p;
   
+    // check if vector sums orrectly, for debugging only
+    sum_h = 0.;
+    for (i = 0; i < fc->vec->vector_histograms_dim; i++) {
+      sum_h += fc->vec->vector_histograms[i];
+    }
+    sum_p = 0.;
+    for (i = 0; i < fc->vec->vector_pairs_dim; i++) {
+      sum_p += fc->vec->vector_histograms[i];
+    }
+    printf("dim_h = %i, dim_p = %i, sum_h = %f, sum_p = %f,  N_h = %i, N_p = %i \n", fc->vec->vector_histograms_dim, fc->vec->vector_pairs_dim, sum_h, sum_p, N_h, N_p);
+    
     pos = ftell(fc->files_hist[sl]);
     if (pos == 0L)
       fwrite(&(fc->vec->vector_histograms_dim), sizeof(int), 1, fc->files_hist[sl]);
@@ -261,8 +276,8 @@ void refreshFeatures(H264FeatureContext* feature_context) {
           }
         }
         // pairs
-        for (k = 0; k < 2*feature_context->histogram_ranges[j][0]; k++) {
-          for (l = 0; l < 2*feature_context->histogram_ranges[j][1]; l++) {
+        for (k = 0; k < 2*feature_context->histogram_ranges[j][0]+1; k++) {
+          for (l = 0; l < 2*feature_context->histogram_ranges[j][1]+1; l++) {
             feature_context->vec->pairs[sl][i][j][k][l] = 0;
           }
         }

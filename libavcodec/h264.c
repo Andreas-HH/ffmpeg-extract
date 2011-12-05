@@ -1119,6 +1119,7 @@ void init_features(H264Context* h) {
   int *****w;
   int hist_dim = 0;
   int pair_dim = 0;
+//   int *dim = &hist_dim;
 //   int *mb_t;
   int *qp;
   int *tape;
@@ -1170,6 +1171,11 @@ void init_features(H264Context* h) {
   fv    =   av_malloc(sizeof(H264FeatureVector));
   tape  =   av_malloc(16*sizeof(int));  
 //   fv->N = N;
+  
+//   FILE *tmp = fopen("p.fv", "r");
+//   fread(&hist_dim, sizeof(int), 1, tmp);
+//   fclose(tmp);
+//    *dim=sizeof(int);
   
   fv->vector_histograms_dim = QP_RANGE*hist_dim;
   fv->vector_pairs_dim      = QP_RANGE*pair_dim;
