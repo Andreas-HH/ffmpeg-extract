@@ -365,13 +365,15 @@ static inline int get_level_prefix(GetBitContext *gb){
  * @return <0 if an error occurred
  */
 static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, int n, const uint8_t *scantable, const uint32_t *qmul, int max_coeff){
+    int i;
     MpegEncContext * const s = &h->s;
     static const int coeff_token_table_index[17]= {0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3};
     int level[16];
     int run_list[16];
+    int proper_coefs[16];
     int myZerosLeft;
     int totalZeros;
-    int zeros_left, coeff_token, total_coeff, i, trailing_ones, run_before;
+    int zeros_left, coeff_token, total_coeff, trailing_ones, run_before;
 
     //FIXME put trailing_onex into the context
 
@@ -505,10 +507,33 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
       run_list[i] = run_before;
     }
     
-    constructProperCoefArray(h->feature_context->tape, level, run_list, total_coeff, totalZeros, get_block_index(n), h->feature_context->vec);  // vec for min/max, prob. obsolete at some point
+    // wait for last block
+//     for (i = 0; i < h->num_stego_features; i++) {
+//       if (h->stego_features[i]->blocknum != -1)
+// 	pthread_join(h->stego_features[i]->thread, &thread_status);
+//     }
+
+    constructProperCoefArray(proper_coefs, level, run_list, total_coeff, totalZeros, get_block_index(n), h->feature_context->vec);  // vec for min/max, prob. obsolete at some point
     
-    if (get_block_index(n) == 1)
-      simulate_hiding_plusminus(level, total_coeff);
+    memcpy(h->feature_context->tape, proper_coefs, 16*sizeof(int));
+    addCounts(h->feature_context, h->s.qscale, get_block_index(n));
+//     if (get_block_index(n) == 1)
+//     for (i = 0; i < h->num_stego_features; i++) {  // do this in pthread
+//       memcpy(h->stego_features[i]->tape, proper_coefs, 16*sizeof(int));
+//       h->stego_features[i]->blocknum = get_block_index(n);
+//       h->stego_features[i]->proper_coefs = proper_coefs;
+//       h->stego_features[i]->current_qp = h->s.qscale;
+//       perform_hiding_plusminus(h->stego_features[i]);
+//       simulate_hiding_plusminus(h->stego_features[i]);
+//       addCounts(h->stego_features[i], h->s.qscale, n);
+//     }
+//     for (i = 0; i < h->num_stego_features; i++) {
+//       if (h->stego_features[i]->blocknum != -1)
+//       wait_for_simulation(h->stego_features[i]);
+//     }
+
+//       simulate_hiding_plusminus(h->feature_context, get_block_index(n));
+//       simulate_hiding_plusminus(level, total_coeff);
 
 // #define STORE_BLOCK(type) \
 //     scantable += zeros_left + total_coeff - 1; \
@@ -582,8 +607,6 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
         av_log(h->s.avctx, AV_LOG_ERROR, "negative number of zero coeffs at %d %d\n", s->mb_x, s->mb_y);
         return -1;
     }
-
-    addCounts(h->feature_context, h->s.qscale, n);
 
     return 0;
 }

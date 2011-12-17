@@ -580,7 +580,9 @@ typedef struct H264Context{
     // Timestamp stuff
     int sei_buffering_period_present;  ///< Buffering period SEI flag
     int initial_cpb_removal_delay[32]; ///< Initial timestamps for CPBs
-    H264FeatureContext *feature_context;
+    int num_stego_features;
+    H264FeatureContext *feature_context;   // clean features, has this name for historical reasons
+    H264FeatureContext **stego_features;
 }H264Context;
 
 
@@ -665,8 +667,6 @@ void ff_h264_hl_decode_mb(H264Context *h);
 int ff_h264_frame_start(H264Context *h);
 int ff_h264_decode_extradata(H264Context *h);
 av_cold int ff_h264_decode_init(AVCodecContext *avctx);
-void init_features(H264Context *h);
-void close_features(H264Context *h);
 av_cold int ff_h264_decode_end(AVCodecContext *avctx);
 av_cold void ff_h264_decode_init_vlc(void);
 
