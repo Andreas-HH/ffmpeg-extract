@@ -518,15 +518,15 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
     memcpy(h->feature_context->tape, proper_coefs, 16*sizeof(int));
     addCounts(h->feature_context, h->s.qscale, get_block_index(n));
 //     if (get_block_index(n) == 1)
-//     for (i = 0; i < h->num_stego_features; i++) {  // do this in pthread
+    for (i = 0; i < h->num_stego_features; i++) {  // do this in pthread
 //       memcpy(h->stego_features[i]->tape, proper_coefs, 16*sizeof(int));
-//       h->stego_features[i]->blocknum = get_block_index(n);
-//       h->stego_features[i]->proper_coefs = proper_coefs;
-//       h->stego_features[i]->current_qp = h->s.qscale;
-//       perform_hiding_plusminus(h->stego_features[i]);
+      h->stego_features[i]->blocknum = get_block_index(n);
+      h->stego_features[i]->proper_coefs = proper_coefs;
+      h->stego_features[i]->current_qp = h->s.qscale;
+      perform_hiding_plusminus(h->stego_features[i]);
 //       simulate_hiding_plusminus(h->stego_features[i]);
-//       addCounts(h->stego_features[i], h->s.qscale, n);
-//     }
+//       addCounts(h->stego_features[i], h->s.qscale, get_block_index(n));
+    }
 //     for (i = 0; i < h->num_stego_features; i++) {
 //       if (h->stego_features[i]->blocknum != -1)
 //       wait_for_simulation(h->stego_features[i]);

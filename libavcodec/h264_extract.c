@@ -8,13 +8,14 @@
  */
 
 
-void perform_hiding_plusminus(H264FeatureContext* fc) {
+void perform_hiding_plusminus(H264FeatureContext *fc) {
   int i;
 //   H264FeatureContext *fc = (H264FeatureContext*) vfc;
   int *coefs = fc->tape;
   double r;
   
-//   printf("about to memcpy! \n");
+  if (fc->blocknum == -1) return;
+  
   memcpy(fc->tape, fc->proper_coefs, 16*sizeof(int));
   for (i = 0; i < num_coefs[fc->blocknum]; i++) {
      if (coefs[i]<2 && coefs[i]>-2) continue;
@@ -41,7 +42,7 @@ void perform_hiding_plusminus(H264FeatureContext* fc) {
     }
   }
   addCounts(fc, fc->current_qp, fc->blocknum);
-  pthread_exit(NULL);
+//   pthread_exit(NULL);
 }
 
 void *PrintHello(void *threadid)
@@ -54,9 +55,8 @@ void *PrintHello(void *threadid)
 void simulate_hiding_plusminus(H264FeatureContext *fc) {
   int rc;
 
-  rc = pthread_create(fc->thread, fc->thread_attr, perform_hiding_plusminus, (void *) fc);
-  if (rc)
-    printf("ERROR: pthread_create failed! %i \n", rc);
+  rc = pthread_create(fc->thread, fc->thread_attr, (void *) &perform_hiding_plusminus, (void *) fc);
+  if (rc) printf("ERROR: pthread_create failed! %i \n", rc);
 }
 
 void wait_for_simulation(H264FeatureContext* fc) {
@@ -235,11 +235,11 @@ void storeFeatureVectors(H264FeatureContext* fc) {
   double sum_h, sum_p;
   double scale_h, scale_p;
   
-  printf("Storing feature vectors.. ");
+//   printf("Storing feature vectors.. ");
   
   if (!fc->refreshed) return;
   
-  printf("I am fresh! \n");
+//   printf("I am fresh! \n");
   
   for (sl = 0; sl < 2; sl++) {
     count_h = 0;
@@ -281,14 +281,14 @@ void storeFeatureVectors(H264FeatureContext* fc) {
       fc->vec->vector_pairs[i] *= scale_p;
   
     // check if vector sums orrectly, for debugging only
-    sum_h = 0.;
+    /*sum_h = 0.;
     for (i = 0; i < fc->vec->vector_histograms_dim; i++) {
       sum_h += fc->vec->vector_histograms[i];
     }
     sum_p = 0.;
     for (i = 0; i < fc->vec->vector_pairs_dim; i++) {
       sum_p += fc->vec->vector_histograms[i];
-    }
+    }*/
 //     printf("dim_h = %i, dim_p = %i, sum_h = %f, sum_p = %f,  N_h = %i, N_p = %i \n", fc->vec->vector_histograms_dim, fc->vec->vector_pairs_dim, sum_h, sum_p, N_h, N_p);
     if (N_h == 0) continue;  // ffmpeg does some test-decoding in the beginning. We dont want to count this!
     
