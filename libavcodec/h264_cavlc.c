@@ -507,30 +507,43 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
       run_list[i] = run_before;
     }
     
-    // wait for last block
-//     for (i = 0; i < h->num_stego_features; i++) {
-//       if (h->stego_features[i]->blocknum != -1)
-// 	pthread_join(h->stego_features[i]->thread, &thread_status);
-//     }
-
+    /*for (i = 0; i < h->num_stego_features; i++) {
+      if (h->stego_features[i]->locked_by_init) 
+	h->stego_features[i]->locked_by_init = 0;
+      else {
+	myprint("cavlc: locking thread mutex \n");
+	pthread_mutex_lock(h->stego_features[i]->thread_mutex);  // stop thread from executing
+      }
+//       myprint("cavlc: locking main mutex \n");
+//       pthread_mutex_lock(h->stego_features[i]->main_mutex);  // wait for "ok" from every thread
+    }*/
     constructProperCoefArray(proper_coefs, level, run_list, total_coeff, totalZeros, get_block_index(n), h->feature_context->vec);  // vec for min/max, prob. obsolete at some point
-    
+
     memcpy(h->feature_context->tape, proper_coefs, 16*sizeof(int));
     addCounts(h->feature_context, h->s.qscale, get_block_index(n));
 //     if (get_block_index(n) == 1)
     for (i = 0; i < h->num_stego_features; i++) {  // do this in pthread
-//       memcpy(h->stego_features[i]->tape, proper_coefs, 16*sizeof(int));
+//       myprint("cavlc: unlocking main \n");
+//       pthread_mutex_unlock(h->stego_features[i]->main_mutex); // tell thread you won't do anything stupid next
+      memcpy(h->stego_features[i]->tape, proper_coefs, 16*sizeof(int));
       h->stego_features[i]->blocknum = get_block_index(n);
-      h->stego_features[i]->proper_coefs = proper_coefs;
-      h->stego_features[i]->current_qp = h->s.qscale;
-      perform_hiding_plusminus(h->stego_features[i]);
-//       simulate_hiding_plusminus(h->stego_features[i]);
-//       addCounts(h->stego_features[i], h->s.qscale, get_block_index(n));
+//       h->stego_features[i]->proper_coefs = proper_coefs;
+//       h->stego_features[i]->current_qp = h->s.qscale;
+//       myprint("cavlc: unlocking thread \n");
+//       pthread_mutex_unlock(h->stego_features[i]->thread_mutex);  // send "ok" to every thread
+//       perform_hiding_plusminus(h->stego_features[i]);
+      simulate_hiding_plusminus(h->stego_features[i]);
+      addCounts(h->stego_features[i], h->s.qscale, get_block_index(n));
     }
-//     for (i = 0; i < h->num_stego_features; i++) {
-//       if (h->stego_features[i]->blocknum != -1)
-//       wait_for_simulation(h->stego_features[i]);
-//     }
+//      for (i = 0; i < h->num_stego_features; i++) {
+// //        if (h->stego_features[i]->blocknum != -1)
+//        myprint("cavlc: locking main mutex \n");
+//        pthread_mutex_lock(h->stego_features[i]->main_mutex);
+//        myprint("cavlc: locking thread mutex \n");
+//        pthread_mutex_lock(h->stego_features[i]->thread_mutex);
+//        myprint("cavlc: unlocking main mutex \n");
+//        pthread_mutex_unlock(h->stego_features[i]->main_mutex);
+//      }
 
 //       simulate_hiding_plusminus(h->feature_context, get_block_index(n));
 //       simulate_hiding_plusminus(level, total_coeff);

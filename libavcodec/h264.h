@@ -583,6 +583,8 @@ typedef struct H264Context{
     int num_stego_features;
     H264FeatureContext *feature_context;   // clean features, has this name for historical reasons
     H264FeatureContext **stego_features;
+    FILE ****rate_bins_hist;  // [accept][sl][rate_idx]
+    FILE ****rate_bins_pair;  // [accept][sl][rate_idx]
 }H264Context;
 
 

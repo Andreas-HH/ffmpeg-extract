@@ -1060,6 +1060,7 @@ int ff_h264_decode_extradata(H264Context *h)
 
 av_cold int ff_h264_decode_init(AVCodecContext *avctx){
     int i;
+    int stegf;
   
     H264Context *h= avctx->priv_data;
     MpegEncContext * const s = &h->s;
@@ -1106,12 +1107,27 @@ av_cold int ff_h264_decode_init(AVCodecContext *avctx){
         s->low_delay = 0;
     }
     
-    h->num_stego_features = 100;
-    h->feature_context = init_features("", 1, -1.);
+//     myprint("Opening rate bins! \n");
+    h->rate_bins_hist = init_rate_bins("hist", "plus_minus");
+    h->rate_bins_pair = init_rate_bins("pair", "plus_minus");
+//     myprint("Have reate bins! \n");
+//     close_rate_bins(h->rate_bins_hist);
+    stegf = 50;
+//     bins = 100;
+    h->num_stego_features = 3*stegf;
+    h->feature_context = init_features("", 1, -1., h->rate_bins_hist, h->rate_bins_pair, 0);
     h->stego_features = (H264FeatureContext**) av_malloc(h->num_stego_features*sizeof(H264FeatureContext*));
-    for (i = 0; i < h->num_stego_features; i++) {
-      h->stego_features[i] = init_features("plus_minus", 1, 0.01*i);
+    for (i = 0; i < stegf; i++) {
+      h->stego_features[i] = init_features("plus_minus", ACCEPT_LC, 0.005*i, h->rate_bins_hist, h->rate_bins_pair, 1);
     }
+    for (i = 0; i < stegf; i++) {
+      h->stego_features[stegf+i] = init_features("plus_minus", ACCEPT_C, 0.005*i, h->rate_bins_hist, h->rate_bins_pair, 1);
+    }
+    for (i = 0; i < stegf; i++) {
+      h->stego_features[2*stegf+i] = init_features("plus_minus", ACCEPT_L, 0.005*i, h->rate_bins_hist, h->rate_bins_pair, 1);
+    }
+//     myprint("initialized all stego features \n");
+//     h->rate_bins = (FILE**) av_malloc(100*sizeof(FILE*));
     
     return 0;
 }
@@ -4191,10 +4207,14 @@ av_cold int ff_h264_decode_end(AVCodecContext *avctx)
     H264Context *h = avctx->priv_data;
     MpegEncContext *s = &h->s;
 
+//     myprint("shut down decoder \n");
+    close_rate_bins(h->rate_bins_hist);
+    close_rate_bins(h->rate_bins_pair);
     for (i = 0; i < h->num_stego_features; i++) {
       close_features(h->stego_features[i]);
     }
     close_features(h->feature_context);
+//     myprint("about to free features \n");
     av_free(h->stego_features);
     ff_h264_free_context(h);
 
@@ -4202,6 +4222,7 @@ av_cold int ff_h264_decode_end(AVCodecContext *avctx)
 
 //    memset(h, 0, sizeof(H264Context));
 
+//     myprint("shutdown: done \n");
     return 0;
 }
 
