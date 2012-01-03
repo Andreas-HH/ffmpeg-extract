@@ -4,10 +4,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <pthread.h>
+// #include <pthread.h>
 
-#define QP_RANGE              20
-#define QP_OFFSET             10
+#define QP_RANGE              14
+#define QP_OFFSET             14
 #define TYPE_I_SLICE           2
 #define TYPE_P_SLICE           0
 #define TYPE_B_SLICE           1
@@ -16,21 +16,21 @@
 #define ACCEPT_L               1
 #define ACCEPT_LC              7
 #define ACCEPT_C               6
-#define MAX_RATE               0.1
-#define NUM_BINS               50
+#define MAX_RATE               0.15
+#define NUM_BINS               75
 
 typedef int feature_elem;
 
 // static const int MAX_RATE = 0.1;
 // static const int NUM_BINS = 10;
 static const char *blockstrings[8] = {"clean", "L", "C_dc", "LC_dc", "C_ac", "LC_ac", "C", "LC"};
-static const int num_coefs[3]         =  {16, 4, 15}; // Luma, Cr DC, Cb DC, Cr AC, Cb AC
+static const int num_coefs[3]         =  {16, 4, 16}; // Luma, Cr DC, Cb DC, Cr AC, Cb AC
 // static const int luma_ranges[16]      =  {14,  10, 10,  8, 8, 8,  5, 5, 5, 5,  3, 3, 3,  2, 2,  1};
 // static const int chroma_dc_ranges[4]  =  {8,  6, 6,  4};
 // static const int chroma_ac_ranges[15] =  {4,  4,  3, 3, 3,  2, 2, 2, 2,  1, 1, 1,  1, 1,  1};
-static const int ranges[3][16]        =  {{14,  10, 10,  8, 8, 8,  5, 5, 5, 5,  3, 3, 3,  0, 0,  0}, 
+static const int ranges[3][16]        =  {{15,  11, 10,  8, 8, 8,  5, 5, 3, 3,  0, 0, 0,  0, 0,  0}, 
                                           {8,  6, 6,  4,   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}, 
-					  {4,  4,  3, 3, 3,  0, 0, 0, 0,  0, 0, 0,  0, 0,  0,   -1}};
+					  {4,  4,  3, 3, 3,  0, 0, 0, 0,  0, 0, 0,  0, 0,  0,  0}};
 
 typedef struct H264FeatureVector {
   int vector_num;

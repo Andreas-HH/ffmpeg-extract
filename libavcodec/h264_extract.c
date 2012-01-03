@@ -166,8 +166,8 @@ int get_block_index(int n) {
 }
 
 int get_rate_index(double rate) {
-  int idx = (int) ((rate/MAX_RATE)*((double) NUM_BINS));
-  if (idx > NUM_BINS) return -1;
+  int idx = (int) ((rate/MAX_RATE)*((double) NUM_BINS) + 0.5);
+  if (idx >= NUM_BINS) return -1;
   return idx;
 }
 
@@ -239,6 +239,7 @@ void addCounts(H264FeatureContext *fc, int qp, int blocknum) {
 //   constructProperCoefArray(tape, level, run_before, total_coeff, totalZeros, blocknum, fc->vec);
   if (fc->extract_rate || fc->files_hist[sl] != NULL) {  // only add counts if results get stored
     for (i = 0; i < num_coefs[blocknum]; i++) {
+      if (blocknum == 2 && i == 0) continue;            // We don't want to count the fake 0 of chroma ac
       coef_index = tape[i];
       if (coef_index == 0) continue;
       else if (coef_index < 0)  {
@@ -249,13 +250,17 @@ void addCounts(H264FeatureContext *fc, int qp, int blocknum) {
 	coef_index = coef_index + ranges[blocknum][i]-1; // fc->histogram_
 	if (coef_index > 2*ranges[blocknum][i]-1) continue; // fc->histogram_
       }
-      fc->vec->histograms[sl][qp_index][blocknum][i][coef_index]++;
+      if (blocknum == 2)
+	fc->vec->histograms[sl][qp_index][blocknum][i-1][coef_index]++; // Chroma AC always has coef_0 = 0
+      else 
+	fc->vec->histograms[sl][qp_index][blocknum][i][coef_index]++;
     }
   }
 //   printf("extracted hist ");
   //pairs
   if (fc->extract_rate || fc->files_pair[sl] != NULL) {  // only add counts if results get stored
     for (i = 0; i < num_coefs[blocknum]-1; i++) {
+      if (blocknum == 2 && i == 0) continue;            // We don't want to count the fake 0 of chroma ac
       l = tape[i] + ranges[blocknum][0];                // we are allowed to exceed the local range here
       r = tape[i+1] + ranges[blocknum][1];              // space is limited by ranges of first two coefs
       if (l < 0 || l > 2*ranges[blocknum][0]) continue;
@@ -336,7 +341,7 @@ void storeFeatureVectors(H264FeatureContext* fc) {
     for (i = 0; i < QP_RANGE; i++) {
       for (j = 0; j < 3; j++) {
         // histograms
-        if (fc->extract_rate || fc->files_hist[sl] != NULL) {
+//         if (fc->extract_rate || fc->files_hist[sl] != NULL) {
 	  for (k = 0; k < num_coefs[j]; k++) {
 	    for (l = 0; l < 2*ranges[j][k]; l++) {
   //             printf("(%i, %i, %i, %i) -- (%i, %i)\n", i, j, k, l, count_h, count_p);
@@ -346,9 +351,9 @@ void storeFeatureVectors(H264FeatureContext* fc) {
   //             fprintf(fc->files_hist[sl], "%i ", fc->vec->histograms[sl][i][j][k][l]);
 	    }
 	  }
-	}
+// 	}
         // pairs
-        if (fc->extract_rate || fc->files_pair[sl] != NULL) {
+//         if (fc->extract_rate || fc->files_pair[sl] != NULL) {
 	  for (k = 0; k < 2*ranges[j][0]+1; k++) {
 	    for (l = 0; l < 2*ranges[j][1]+1; l++) {
 	      if (k == ranges[j][0] && l == ranges[j][1]) continue; // 00: &&; 0x x0: ||
@@ -359,7 +364,7 @@ void storeFeatureVectors(H264FeatureContext* fc) {
   //             fprintf(fc->files_pair[sl], "%i ", fc->vec->pairs[sl][i][j][k][l]);
 	    }
 	  }
-	}
+// 	}
       }
     }
 //     printf("found: (%i, %i) calculated: (%i, %i)\n", count_h, count_p, fc->vec->vector_histograms_dim, fc->vec->vector_pairs_dim);
@@ -395,8 +400,12 @@ void storeFeatureVectors(H264FeatureContext* fc) {
 //       	if (fc->accept_blocks == ACCEPT_LC)
 // 	  printf("LC: wtf_2 \n");
     if (fc->extract_rate) {
-      if (sl == 0) bin = get_rate_index(((double)fc->hidden_bits_p)/((double)fc->num_4x4_blocks_p));
+      if (sl == 0) {
+// 	printf("%f: p-rate=%f ", fc->p_hide, ((double)fc->hidden_bits_p)/((double)fc->num_4x4_blocks_p));
+	bin = get_rate_index(((double)fc->hidden_bits_p)/((double)fc->num_4x4_blocks_p));
+      }
       if (sl == 1) bin = get_rate_index(((double)fc->hidden_bits_b)/((double)fc->num_4x4_blocks_b));
+//             printf("%f: extract rate! bin=%i ", fc->p_hide, bin);
 //       printf("found bin: %i \n", bin);
 //       	if (fc->accept_blocks == ACCEPT_LC)
 // 	  printf("LC: looking for files, bin=%i \n", bin);
@@ -409,10 +418,15 @@ void storeFeatureVectors(H264FeatureContext* fc) {
 	current_pair_file = NULL;
       }
     } else {
+//       printf("%f, extract prob ", fc->p_hide);
 //       printf("not using bins! \n");
       current_hist_file = fc->files_hist[sl];
       current_pair_file = fc->files_pair[sl];
     }
+    
+//     printf("%f: Have current_files, start writing \n", fc->p_hide);
+//     if (current_hist_file == NULL) printf("%f: hist is NULL! \n", fc->p_hide);
+//     if (current_pair_file == NULL) printf("%f: pair is NULL! \n", fc->p_hide);
 //     current_file = NULL;
 //     printf("b-rate: %f, p-rate: %f \n", ((double)fc->hidden_bits_b)/((double)fc->num_4x4_blocks_b), ((double)fc->hidden_bits_p)/((double)fc->num_4x4_blocks_p));
 //     if (fc->files_hist[sl] != NULL) {
@@ -674,6 +688,11 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
 //       printf("using rate \n");
       fc->rate_bins_hist = bins_h;
       fc->rate_bins_pair = bins_p;
+      
+      fc->files_hist[0] = NULL;
+      fc->files_hist[1] = NULL;
+      fc->files_pair[0] = NULL;
+      fc->files_pair[1] = NULL;
     } else {
 //       printf("opening prob files \n");
       sprintf(p_h_path, "%s/%s/prob/p_hist/p_hist_prob_%i.fv", method_name, blockstring, (int) (p_hide*1000.));

@@ -1112,19 +1112,19 @@ av_cold int ff_h264_decode_init(AVCodecContext *avctx){
     h->rate_bins_pair = init_rate_bins("pair", "plus_minus");
 //     myprint("Have reate bins! \n");
 //     close_rate_bins(h->rate_bins_hist);
-    stegf = 50;
+    stegf = 70;
 //     bins = 100;
     h->num_stego_features = 3*stegf;
     h->feature_context = init_features("", 1, -1., h->rate_bins_hist, h->rate_bins_pair, 0);
     h->stego_features = (H264FeatureContext**) av_malloc(h->num_stego_features*sizeof(H264FeatureContext*));
     for (i = 0; i < stegf; i++) {
-      h->stego_features[i] = init_features("plus_minus", ACCEPT_LC, 0.005*i, h->rate_bins_hist, h->rate_bins_pair, 1);
+      h->stego_features[i] = init_features("plus_minus", ACCEPT_LC, 0.004*i, h->rate_bins_hist, h->rate_bins_pair, 1);
     }
     for (i = 0; i < stegf; i++) {
-      h->stego_features[stegf+i] = init_features("plus_minus", ACCEPT_C, 0.005*i, h->rate_bins_hist, h->rate_bins_pair, 1);
+      h->stego_features[stegf+i] = init_features("plus_minus", ACCEPT_C, 0.004*i, h->rate_bins_hist, h->rate_bins_pair, 1);
     }
     for (i = 0; i < stegf; i++) {
-      h->stego_features[2*stegf+i] = init_features("plus_minus", ACCEPT_L, 0.005*i, h->rate_bins_hist, h->rate_bins_pair, 1);
+      h->stego_features[2*stegf+i] = init_features("plus_minus", ACCEPT_L, 0.004*i, h->rate_bins_hist, h->rate_bins_pair, 1);
     }
 //     myprint("initialized all stego features \n");
 //     h->rate_bins = (FILE**) av_malloc(100*sizeof(FILE*));
