@@ -6,8 +6,8 @@
 #include <string.h>
 // #include <pthread.h>
 
-#define QP_RANGE              14
-#define QP_OFFSET             14
+#define QP_RANGE              8
+#define QP_OFFSET             18
 #define TYPE_I_SLICE           2
 #define TYPE_P_SLICE           0
 #define TYPE_B_SLICE           1
@@ -16,8 +16,9 @@
 #define ACCEPT_L               1
 #define ACCEPT_LC              7
 #define ACCEPT_C               6
-#define MAX_RATE               0.15
-#define NUM_BINS               75
+#define MAX_RATE               0.2
+#define NUM_BINS               70
+#define PROB_DELTA             0.012
 
 typedef int feature_elem;
 

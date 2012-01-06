@@ -329,11 +329,14 @@ void storeFeatureVectors(H264FeatureContext* fc) {
   
 //   printf("Storing feature vectors.. \n");
   
-  if (!fc->refreshed) return;
+  if (!fc->refreshed) {
+//     printf("not refreshed! \n");
+    return;
+  }
   
 //   printf("I am fresh! \n");
   
-  for (sl = 0; sl < 2; sl++) {
+  for (sl = 0; sl < 2; sl++) {  // DROPPING B-FRAMES !!!
     count_h = 0;
     count_p = 0;
     N_h = 0;
@@ -404,7 +407,8 @@ void storeFeatureVectors(H264FeatureContext* fc) {
 // 	printf("%f: p-rate=%f ", fc->p_hide, ((double)fc->hidden_bits_p)/((double)fc->num_4x4_blocks_p));
 	bin = get_rate_index(((double)fc->hidden_bits_p)/((double)fc->num_4x4_blocks_p));
       }
-      if (sl == 1) bin = get_rate_index(((double)fc->hidden_bits_b)/((double)fc->num_4x4_blocks_b));
+      if (sl == 1) 
+	bin = get_rate_index(((double)fc->hidden_bits_b)/((double)fc->num_4x4_blocks_b));
 //             printf("%f: extract rate! bin=%i ", fc->p_hide, bin);
 //       printf("found bin: %i \n", bin);
 //       	if (fc->accept_blocks == ACCEPT_LC)
@@ -445,6 +449,12 @@ void storeFeatureVectors(H264FeatureContext* fc) {
 // 	bin = get_rate_index(((double)fc->hidden_bits_p)/((double)fc->num_4x4_blocks_p));
 // 	if (bin >= 0) 
 // 	  fwrite(fc->rate_bins_hist[fc->accept_blocks][sl][bin], sizeof(double), fc->vec->vector_histograms_dim, fc->files_hist[sl]);
+// 	}
+//         printf("writung %i doubles! \n", fc->vec->vector_histograms_dim);
+// 	if (fc->p_hide < 0) {
+// 	  for (i = 0; i < fc->vec->vector_histograms_dim; i++)
+// 	    printf("%f ", fc->vec->vector_histograms[i]);
+// 	  printf("\n");
 // 	}
 	fwrite(fc->vec->vector_histograms, sizeof(double), fc->vec->vector_histograms_dim, current_hist_file);
 	
@@ -511,6 +521,10 @@ void refreshFeatures(H264FeatureContext* fc) {
       }
     }
   }
+//   for (i = 0; i < fc->vec->vector_histograms_dim; i++)
+//     fc->vec->vector_histograms[i] = 0.;
+//   for (i = 0; i < fc->vec->vector_pairs_dim; i++)
+//     fc->vec->vector_pairs[i] = 0.;
 //   for (i = 0; i < 396; i++) {
 //     feature_context->vec->mb_t[i] = 0;
 //   }
@@ -549,7 +563,8 @@ FILE**** init_rate_bins(char* type, char *method_name) {
     result[i][1] = (FILE**) malloc(NUM_BINS*sizeof(FILE*));
     for (j = 0; j < NUM_BINS; j++) {
       sprintf(path, "%s/%s/rate/b_%s/b_%s_rate_%i.fv", method_name, blockstring, type, type, (int) ((((double) (10000*j))/((double) NUM_BINS))*MAX_RATE));
-      result[i][1][j] = fopen(path, "a");
+//       result[i][1][j] = fopen(path, "a");
+      result[i][1][j] = NULL;
     }
   }
   
@@ -564,15 +579,19 @@ void close_rate_bins(FILE**** bins) {
   for (i = 0; i < 8; i++) {
     if (i != ACCEPT_L && i != ACCEPT_C && i != ACCEPT_LC) continue;
     for (j = 0; j < NUM_BINS; j++) {
-      fflush(bins[i][0][j]);
-      fclose(bins[i][0][j]);
+      if (bins[i][0][j] != NULL) {
+	fflush(bins[i][0][j]);
+	fclose(bins[i][0][j]);
+      }
     }
 //     printf("close: closed p files \n");
     free(bins[i][0]);
     
     for (j = 0; j < NUM_BINS; j++) {
-      fflush(bins[i][1][j]);
-      fclose(bins[i][1][j]);
+      if (bins[i][1][j] != NULL) {
+	fflush(bins[i][1][j]);
+	fclose(bins[i][1][j]);
+      }
     }
 //     printf("close: closed b  files \n");
     free(bins[i][1]);
@@ -677,11 +696,11 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
   fc->extract_rate   = extract_rate;
   if (p_hide < 0) {
     fc->files_hist[0]  = fopen("clean/p_histograms.fv", "a");
-    fc->files_hist[1]  = fopen("clean/b_histograms.fv", "a");
-//     fc->files_hist[1] = NULL;
+//     fc->files_hist[1]  = fopen("clean/b_histograms.fv", "a");
+    fc->files_hist[1] = NULL;
     fc->files_pair[0]  = fopen("clean/p_pairs.fv", "a");
-    fc->files_pair[1]  = fopen("clean/b_pairs.fv", "a");
-//     fc->files_pair[1] = NULL;
+//     fc->files_pair[1]  = fopen("clean/b_pairs.fv", "a");
+    fc->files_pair[1] = NULL;
   } else {
 //     printf("opening files ");
     if (extract_rate) {
