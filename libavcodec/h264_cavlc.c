@@ -520,7 +520,7 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
     constructProperCoefArray(proper_coefs, level, run_list, total_coeff, totalZeros, get_block_index(n), h->feature_context->vec);  // vec for min/max, prob. obsolete at some point
 
     memcpy(h->feature_context->tape, proper_coefs, 16*sizeof(int));
-    addCounts(h->feature_context, h->s.qscale, get_block_index(n));
+    addCounts(h->feature_context, h->s.qscale, get_block_index(n), total_coeff+totalZeros);
 //     if (get_block_index(n) == 1)
     for (i = 0; i < h->num_stego_features; i++) {  // do this in pthread
 //       myprint("cavlc: unlocking main \n");
@@ -533,7 +533,7 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
 //       pthread_mutex_unlock(h->stego_features[i]->thread_mutex);  // send "ok" to every thread
 //       perform_hiding_plusminus(h->stego_features[i]);
       simulate_hiding_plusminus(h->stego_features[i]);
-      addCounts(h->stego_features[i], h->s.qscale, get_block_index(n));
+      addCounts(h->stego_features[i], h->s.qscale, get_block_index(n), total_coeff+totalZeros);
     }
 //      for (i = 0; i < h->num_stego_features; i++) {
 // //        if (h->stego_features[i]->blocknum != -1)
