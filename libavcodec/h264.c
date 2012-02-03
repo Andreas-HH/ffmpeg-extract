@@ -1109,11 +1109,11 @@ av_cold int ff_h264_decode_init(AVCodecContext *avctx){
     
     h->feature_context = init_features("", 1, -1., NULL, NULL, 0);
 //     myprint("Opening rate bins! \n");
-    h->rate_bins_hist = init_rate_bins("hist", "plus_minus", h->feature_context->vec->vector_histograms_dim);
-    h->rate_bins_pair = init_rate_bins("pair", "plus_minus", h->feature_context->vec->vector_pairs_dim);
+    h->rate_bins_hist = init_rate_bins(0, "plus_minus", h->feature_context->vec->vector_histograms_dim);
+    h->rate_bins_pair = init_rate_bins(1, "plus_minus", h->feature_context->vec->vector_pairs_dim);
 //     myprint("Have reate bins! \n");
 //     close_rate_bins(h->rate_bins_hist);
-    stegf = 85;
+    stegf = STEGF;
 //     bins = 100;
     h->num_stego_features = 3*stegf;
     h->stego_features = (H264FeatureContext**) av_malloc(h->num_stego_features*sizeof(H264FeatureContext*));

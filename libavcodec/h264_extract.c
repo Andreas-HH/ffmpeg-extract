@@ -80,6 +80,8 @@ void myprint(char *text) {
 //   if (rc) printf("ERROR: pthread_create failed! %i \n", rc);
 // }
 
+
+// When it comes to other embedding methods, be sure to change the method in header (init_rate_bins and init_features)
 void simulate_hiding_plusminus(H264FeatureContext *fc) {
   int i;
   int *coefs = fc->tape;
@@ -110,13 +112,17 @@ void simulate_hiding_plusminus(H264FeatureContext *fc) {
 	  fc->hidden_bits_b++;
 	  break;
       }
-      r = (((double) rand()) / ((double) RAND_MAX));
-      if (r < PROB_KEEP) {   // decide to keep or change value
+      if (coefs[i] == 2) {
+	coefs[i]++;
+      } else {
 	r = (((double) rand()) / ((double) RAND_MAX));
-	if (r < PROB_INCREASE) {  // if changing, increase or decrease?
-	  coefs[i] += 1;
-	} else {
-	  coefs[i] -= 1;
+	if (r < PROB_KEEP) {   // decide to keep or change value
+	  r = (((double) rand()) / ((double) RAND_MAX));
+	  if (r < PROB_INCREASE) {  // if changing, increase or decrease?
+	    coefs[i] += 1;
+	  } else {
+	    coefs[i] -= 1;
+	  }
 	}
       }
     }
@@ -243,26 +249,21 @@ void addCounts(H264FeatureContext *fc, int qp, int blocknum, int len) {
     for (i = 0; i < len; i++) { // num_coefs[blocknum]
 //       if (blocknum == 2 && i == 0) continue;            // We don't want to count the fake 0 of chroma ac
       coef_index = tape[i];
-      if (coef_index == 0) continue;
-      else if (coef_index < 0)  {
+//       if (coef_index == 0) continue;
+      if (coef_index <= 0)  {
 	coef_index = coef_index + ranges[blocknum][i]; // fc->histogram_
 	if (coef_index < 0) continue;
       }
       else if (coef_index > 0)  {
-	coef_index = coef_index + ranges[blocknum][i]-1; // fc->histogram_
-	if (coef_index > 2*ranges[blocknum][i]-1) continue; // fc->histogram_
+	coef_index = coef_index + ranges[blocknum][i]; // -1
+	if (coef_index > 2*ranges[blocknum][i]) continue; // -1
       }
-//       if (blocknum == 2)
-// 	fc->vec->histograms[sl][qp_index][blocknum][i-1][coef_index]++; // Chroma AC always has coef_0 = 0
-//       else 
-	fc->vec->histograms[sl][qp_index][blocknum][i][coef_index]++;
+      fc->vec->histograms[sl][qp_index][blocknum][i][coef_index]++;
     }
   }
-//   printf("extracted hist ");
   //pairs
   if (fc->extract_rate || fc->files_pair[sl] != NULL) {  // only add counts if results get stored
     for (i = 0; i < len-1; i++) { // num_coefs[blocknum]
-//       if (blocknum == 2 && i == 0) continue;            // We don't want to count the fake 0 of chroma ac
       l = tape[i] + ranges[blocknum][0];                // we are allowed to exceed the local range here
       r = tape[i+1] + ranges[blocknum][1];              // space is limited by ranges of first two coefs
       if (l < 0 || l > 2*ranges[blocknum][0]) continue;
@@ -270,8 +271,6 @@ void addCounts(H264FeatureContext *fc, int qp, int blocknum, int len) {
       fc->vec->pairs[sl][qp_index][blocknum][l][r]++;
     }
   }
-  
-//   printf("and pairs \n");
 }
 
 void storeCounts(H264FeatureContext *fc) {
@@ -348,9 +347,9 @@ void storeFeatureVectors(H264FeatureContext* fc) {
         // histograms
 //         if (fc->extract_rate || fc->files_hist[sl] != NULL) {
 	  for (k = 0; k < num_coefs[j]; k++) {
-	    for (l = 0; l < 2*ranges[j][k]; l++) {
+	    for (l = 0; l < 2*ranges[j][k]+1; l++) {
   //             printf("(%i, %i, %i, %i) -- (%i, %i)\n", i, j, k, l, count_h, count_p);
-	      fc->vec->vector_histograms[count_h] = (double) fc->vec->histograms[sl][i][j][k][l];
+	      fc->vec->vector_histograms[count_h] = fc->vec->histograms[sl][i][j][k][l]; // (double) 
 	      count_h++;
 	      N_h += fc->vec->histograms[sl][i][j][k][l];
   //             fprintf(fc->files_hist[sl], "%i ", fc->vec->histograms[sl][i][j][k][l]);
@@ -361,9 +360,9 @@ void storeFeatureVectors(H264FeatureContext* fc) {
 //         if (fc->extract_rate || fc->files_pair[sl] != NULL) {
 	  for (k = 0; k < 2*ranges[j][0]+1; k++) {
 	    for (l = 0; l < 2*ranges[j][1]+1; l++) {
-	      if (k == ranges[j][0] && l == ranges[j][1]) continue; // 00: &&; 0x x0: ||
+// 	      if (k == ranges[j][0] && l == ranges[j][1]) continue; // 00: &&; 0x x0: ||
   //             printf("(%i, %i)\n", count_h, count_p);
-	      fc->vec->vector_pairs[count_p] = (double) fc->vec->pairs[sl][i][j][k][l];
+	      fc->vec->vector_pairs[count_p] = fc->vec->pairs[sl][i][j][k][l]; // (double) 
 	      count_p++;
 	      N_p += fc->vec->pairs[sl][i][j][k][l];
   //             fprintf(fc->files_pair[sl], "%i ", fc->vec->pairs[sl][i][j][k][l]);
@@ -389,18 +388,16 @@ void storeFeatureVectors(H264FeatureContext* fc) {
 //     printf("dim_h = %i,dim_p = %i, sum_h = %f, sum_p = %f,  N_h = %i, N_p = %i \n", fc->vec->vector_histograms_dim, fc->vec->vector_pairs_dim, sum_h, sum_p, N_h, N_p);
 //     if (fc->accept_blocks == ACCEPT_LC)
 //       printf("LC: hidden bits: %i, numblocks: %i \n", fc->hidden_bits_p, fc->num_4x4_blocks_p);
-    if (sl == 0) if (fc->num_4x4_blocks_p == 0) {
-//       printf("N_h = 0, accept = %i, hidden bits_p: %i, numblocks: %i \n", fc->accept_blocks, fc->hidden_bits_p, fc->num_4x4_blocks_p);
-      continue;  // ffmpeg does some test-decoding in the beginning. We dont want to count this!
-    }
+    if (sl == 0) if (fc->num_4x4_blocks_p == 0) continue;  // ffmpeg does some test-decoding in the beginning. We dont want to count this!
     if (sl == 1) if (fc->num_4x4_blocks_b == 0) continue;  // ffmpeg does some test-decoding in the beginning. We dont want to count this!
    
-    scale_h = ((double) fc->vec->vector_histograms_dim)/((double) N_h);
+    // leave all pre-processing to Stegosaurus
+    /*scale_h = ((double) fc->vec->vector_histograms_dim)/((double) N_h);
     for (i = 0; i < fc->vec->vector_histograms_dim; i++)
       fc->vec->vector_histograms[i] *= scale_h;
     scale_p = ((double) fc->vec->vector_pairs_dim)/((double) N_p);
     for (i = 0; i < fc->vec->vector_pairs_dim; i++)
-      fc->vec->vector_pairs[i] *= scale_p;
+      fc->vec->vector_pairs[i] *= scale_p;*/
     
 //       	if (fc->accept_blocks == ACCEPT_LC)
 // 	  printf("LC: wtf_2 \n");
@@ -437,38 +434,17 @@ void storeFeatureVectors(H264FeatureContext* fc) {
 //     printf("b-rate: %f, p-rate: %f \n", ((double)fc->hidden_bits_b)/((double)fc->num_4x4_blocks_b), ((double)fc->hidden_bits_p)/((double)fc->num_4x4_blocks_p));
 //     if (fc->files_hist[sl] != NULL) {
     if (current_hist_file != NULL) {
-//       if (fc->accept_blocks == ACCEPT_LC)
-// 	printf("Storing some LC vector \n");
-//       printf(" fc->files_hist[%i] != NULL \n", sl);
-//       pos = ftell(current_hist_file);
-// //       printf(" Having pos \n");
-//       if (pos == 0L)
-// 	fwrite(&(fc->vec->vector_histograms_dim), sizeof(int), 1, current_hist_file);
       if (N_h != 0) {
-  
-// 	printf(" Writing hist of slice %i \n", sl);
-//         if (sl == 0) {
-// 	bin = get_rate_index(((double)fc->hidden_bits_p)/((double)fc->num_4x4_blocks_p));
-// 	if (bin >= 0) 
-// 	  fwrite(fc->rate_bins_hist[fc->accept_blocks][sl][bin], sizeof(double), fc->vec->vector_histograms_dim, fc->files_hist[sl]);
-// 	}
-//         printf("writung %i doubles! \n", fc->vec->vector_histograms_dim);
-// 	if (fc->p_hide < 0) {
-// 	  for (i = 0; i < fc->vec->vector_histograms_dim; i++)
-// 	    printf("%f ", fc->vec->vector_histograms[i]);
-// 	  printf("\n");
-// 	}
-	fwrite(fc->vec->vector_histograms, sizeof(double), fc->vec->vector_histograms_dim, current_hist_file);
-	
+	fwrite(fc->vec->vector_histograms, sizeof(int), fc->vec->vector_histograms_dim, current_hist_file); // double
       }
     }
 //     printf("Stored histograms \n");
     if (current_pair_file != NULL) {
-      pos = ftell(current_pair_file);
-      if (pos == 0L)
-	fwrite(&(fc->vec->vector_pairs_dim), sizeof(int), 1, current_pair_file);
+//       pos = ftell(current_pair_file);
+//       if (pos == 0L)
+// 	fwrite(&(fc->vec->vector_pairs_dim), sizeof(int), 1, current_pair_file);
       if (N_p != 0) {
-	fwrite(fc->vec->vector_pairs, sizeof(double), fc->vec->vector_pairs_dim, current_pair_file);
+	fwrite(fc->vec->vector_pairs, sizeof(int), fc->vec->vector_pairs_dim, current_pair_file); // double
       }
     }
 //     if (fc->files_pair[sl] != NULL) {
@@ -541,11 +517,15 @@ void refreshFeatures(H264FeatureContext* fc) {
   fc->refreshed = 1;
 }
 
-FILE**** init_rate_bins(char* type, char *method_name, int dim) {
+FILE**** init_rate_bins(char pair, char *method_name, int dim) {
   int i, j;
   FILE ****result;
   char *blockstring;// = blockstrings[accept];
   char path[512];
+  char *types[2] = {"hist", "pair"};
+  char *type = types[pair];   // a bit tricky but should work if we only have histograms and pairs, maybe giving the string and then a hastable on int is better style
+  double rate;
+  char using_rate = 1;
   
   result = (FILE****) malloc(8*sizeof(FILE***)); // accept: [0..7]
   for (i = 0; i < 8; i++) {
@@ -557,20 +537,24 @@ FILE**** init_rate_bins(char* type, char *method_name, int dim) {
     result[i][0] = (FILE**) malloc(NUM_BINS*sizeof(FILE*));
     for (j = 0; j < NUM_BINS; j++) {
 //       printf("j=%i, %f \n", j, (((double) (j))/((double) NUM_BINS))*MAX_RATE);
-      sprintf(path, "%s/%s/rate/p_%s/p_%s_rate_%i.fv", method_name, blockstring, type, type, (int) ((((double) (10000*j))/((double) NUM_BINS))*MAX_RATE));
+      rate = (((double) j)/((double) NUM_BINS))*MAX_RATE;
+      sprintf(path, "%s/%s/rate/p_%s/p_%s_rate_%i.fv", method_name, blockstring, type, type, (int) (10000. * rate));
 //       printf("opening rate file: %s \n", path);
       result[i][0][j] = fopen(path, "a");
-      if (result[i][0][j] != NULL && ftell(result[i][0][j]) == 0L) 
-        fwrite(&dim, sizeof(int), 1, result[i][0][j]);
+      writeHeader(result[i][0][j], pair, TYPE_P_SLICE, METHOD, using_rate, rate, i);
+//       if (result[i][0][j] != NULL && ftell(result[i][0][j]) == 0L) 
+//         fwrite(&dim, sizeof(int), 1, result[i][0][j]);
     }
     
     result[i][1] = (FILE**) malloc(NUM_BINS*sizeof(FILE*));
     for (j = 0; j < NUM_BINS; j++) {
-      sprintf(path, "%s/%s/rate/b_%s/b_%s_rate_%i.fv", method_name, blockstring, type, type, (int) ((((double) (10000*j))/((double) NUM_BINS))*MAX_RATE));
+      rate = (((double) j)/((double) NUM_BINS))*MAX_RATE;
+      sprintf(path, "%s/%s/rate/b_%s/b_%s_rate_%i.fv", method_name, blockstring, type, type, (int) (10000. * rate));
 //       result[i][1][j] = fopen(path, "a");
       result[i][1][j] = NULL;
-      if (result[i][1][j] != NULL && ftell(result[i][1][j]) == 0L) 
-        fwrite(&dim, sizeof(int), 1, result[i][1][j]);
+      writeHeader(result[i][1][j], pair, TYPE_B_SLICE, METHOD, using_rate, rate, i);
+//       if (result[i][1][j] != NULL && ftell(result[i][1][j]) == 0L) 
+//         fwrite(&dim, sizeof(int), 1, result[i][1][j]);
     }
   }
   
@@ -586,7 +570,7 @@ void close_rate_bins(FILE**** bins) {
     if (i != ACCEPT_L && i != ACCEPT_C && i != ACCEPT_LC) continue;
     for (j = 0; j < NUM_BINS; j++) {
       if (bins[i][0][j] != NULL) {
-	fflush(bins[i][0][j]);
+// 	fflush(bins[i][0][j]);
 	fclose(bins[i][0][j]);
       }
     }
@@ -595,7 +579,7 @@ void close_rate_bins(FILE**** bins) {
     
     for (j = 0; j < NUM_BINS; j++) {
       if (bins[i][1][j] != NULL) {
-	fflush(bins[i][1][j]);
+// 	fflush(bins[i][1][j]);
 	fclose(bins[i][1][j]);
       }
     }
@@ -622,6 +606,7 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
 //   int *mb_t;
   int *qp;
   int *tape;
+  char method;
   char b_h_path[512];
   char b_p_path[512];
   char p_h_path[512];
@@ -653,7 +638,7 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
         // setup histograms
         v[sl][i][j] = malloc(num_coefs[j]*sizeof(int*));
         for (k = 0; k < num_coefs[j]; k++) {
-          v[sl][i][j][k] = malloc(2*ranges[j][k]*sizeof(int));
+          v[sl][i][j][k] = malloc((2*ranges[j][k]+1)*sizeof(int));
         }
         // setup pairs
         w[sl][i][j] = malloc((2*ranges[j][0]+1)*sizeof(int*)); // +1 for the zero
@@ -666,9 +651,9 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
   
   for (i = 0; i < 3; i++) { // scan through blocks
     for (j = 0; j < num_coefs[i]; j++) {
-      hist_dim += 2*ranges[i][j];
+      hist_dim += 2*ranges[i][j] + 1;
     }
-    pair_dim += (2*ranges[i][0]+1) * (2*ranges[i][1]+1) - 1; // (0,0) not included
+    pair_dim += (2*ranges[i][0]+1) * (2*ranges[i][1]+1); // (0,0) included, other wise - 1
   }
 //   v     =   av_malloc(USED_PIXELS*FEATURE_DIMENSION*QP_RANGE*sizeof(feature_elem));
 //   mb_t  =   av_malloc(396*sizeof(int));
@@ -735,14 +720,23 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
     }
   }
   
-  if (fc->files_hist[0] != NULL && ftell(fc->files_hist[0]) == 0L) 
-    fwrite(&(fc->vec->vector_histograms_dim), sizeof(int), 1, fc->files_hist[0]);
-  if (fc->files_hist[1] != NULL && ftell(fc->files_hist[1]) == 0L) 
-    fwrite(&(fc->vec->vector_histograms_dim), sizeof(int), 1, fc->files_hist[1]);
-  if (fc->files_pair[0] != NULL && ftell(fc->files_pair[0]) == 0L) 
-    fwrite(&(fc->vec->vector_histograms_dim), sizeof(int), 1, fc->files_pair[0]);
-  if (fc->files_pair[1] != NULL && ftell(fc->files_pair[1]) == 0L) 
-    fwrite(&(fc->vec->vector_histograms_dim), sizeof(int), 1, fc->files_pair[1]);
+  if (p_hide < 0) {
+    method = 0;
+  } else {
+    method = METHOD;
+  }
+  writeHeader(fc->files_hist[0], 0, TYPE_P_SLICE, method, 0, p_hide, accept_blocks);
+  writeHeader(fc->files_hist[1], 0, TYPE_B_SLICE, method, 0, p_hide, accept_blocks);
+  writeHeader(fc->files_pair[0], 1, TYPE_P_SLICE, method, 0, p_hide, accept_blocks);
+  writeHeader(fc->files_pair[1], 1, TYPE_B_SLICE, method, 0, p_hide, accept_blocks);
+//   if (fc->files_hist[0] != NULL && ftell(fc->files_hist[0]) == 0L) 
+//     fwrite(&(fc->vec->vector_histograms_dim), sizeof(int), 1, fc->files_hist[0]);
+//   if (fc->files_hist[1] != NULL && ftell(fc->files_hist[1]) == 0L) 
+//     fwrite(&(fc->vec->vector_histograms_dim), sizeof(int), 1, fc->files_hist[1]);
+//   if (fc->files_pair[0] != NULL && ftell(fc->files_pair[0]) == 0L) 
+//     fwrite(&(fc->vec->vector_pairs_dim), sizeof(int), 1, fc->files_pair[0]);
+//   if (fc->files_pair[1] != NULL && ftell(fc->files_pair[1]) == 0L) 
+//     fwrite(&(fc->vec->vector_pairs_dim), sizeof(int), 1, fc->files_pair[1]);
   
 //   fc->p_hist = fopen("p_histograms.fv", "a");
 //   fc->p_pair = fopen("p_pairs.fv", "a");
@@ -790,22 +784,22 @@ void close_features(H264FeatureContext* fc) {
 //   fclose(fc->logfile);
 //   printf("close: done logfile \n");
   if (fc->files_hist[0] != NULL) {
-    fflush(fc->files_hist[0]);
+//     fflush(fc->files_hist[0]);
     fclose(fc->files_hist[0]);
   }
 //   printf("close: done p_hist \n");
   if (fc->files_hist[1] != NULL) {
-    fflush(fc->files_hist[1]);
+//     fflush(fc->files_hist[1]);
     fclose(fc->files_hist[1]);
   }
 //   printf("close: done b_hist \n");
   if (fc->files_pair[0] != NULL) {
-    fflush(fc->files_pair[0]);
+//     fflush(fc->files_pair[0]);
     fclose(fc->files_pair[0]);
   }
 //   printf("close: done p_pair \n");
   if (fc->files_pair[1] != NULL) {
-    fflush(fc->files_pair[1]);
+//     fflush(fc->files_pair[1]);
     fclose(fc->files_pair[1]);
   }
 //   printf("close: done b_pair \n");
@@ -852,3 +846,27 @@ void close_features(H264FeatureContext* fc) {
   free(fc);
 }
 
+void writeHeader(FILE *file, char pair, char slice_type, char method, char using_rate, double rate, char accept){
+//   printf("Writing Header \n");
+  if (file == NULL || ftell(file) != 0L) return;
+//   printf("and not returning immediately \n");
+  int i, j;
+  char qp_offset = QP_OFFSET;
+  char qp_range = QP_RANGE;
+   
+  fwrite(&pair, sizeof(char), 1, file);
+  fwrite(&slice_type, sizeof(char), 1, file);
+  fwrite(&method, sizeof(char), 1, file);
+  if (method != 0) {  // don't write a rate/accept for clean features
+    fwrite(&using_rate, sizeof(char), 1, file);
+    fwrite(&rate, sizeof(double), 1, file);
+    fwrite(&accept, sizeof(char), 1, file);
+  }
+  fwrite(&qp_offset, sizeof(char), 1, file);
+  fwrite(&qp_range, sizeof(char), 1, file);
+  for (i = 0; i < 3; i++) {
+    for (j = 0; j < num_coefs[i]; j++) {
+      fwrite(&(ranges[i][j]), sizeof(unsigned char), 1, file);
+    }
+  }
+}
