@@ -8,78 +8,9 @@
  */
 
 
-/*void perform_hiding_plusminus(void *vfc) {
-  int i;
-  H264FeatureContext *fc = (H264FeatureContext*) vfc;
-  int *coefs;// = fc->tape;
-  double r;
-  
-  printf("thread: locking main mutex \n");
-  pthread_mutex_lock(fc->main_mutex);    // tell main thread you are ready to do work
-  
-  while (1) { // need some variable in fc that tells thread to terminate
-    printf("thread: locking thread mutex \n");
-    pthread_mutex_lock(fc->thread_mutex);  // waiting for main to prepare coefs
-    printf("thread: unlocking main mutex \n");
-    pthread_mutex_unlock(fc->main_mutex);    // tell main thread you are ready to do work
-//     printf("thread: locking main mutex \n");
-//     pthread_mutex_lock(fc->main_mutex);  // stop main from doing stupid things
-    printf("Hallo \n");
-    if (fc->blocknum == -1) {
-      printf("thread: unlocking thread mutex (blocknum) \n");
-      pthread_mutex_unlock(fc->thread_mutex);  // tell main that I'm finished
-      printf("thread: locking main mutex \n");
-      pthread_mutex_unlock(fc->main_mutex);  // tell main that I'm finished
-      continue;  // return
-    }
-    
-    coefs = fc->tape;
-    memcpy(fc->tape, fc->proper_coefs, 16*sizeof(int));
-    for (i = 0; i < num_coefs[fc->blocknum]; i++) {
-      if (coefs[i]<2 && coefs[i]>-2) continue;
-      r = (((double) rand()) / ((double) RAND_MAX));
-  //     printf("%f \n ", r);
-      if (r < fc->p_hide) {
-	switch (fc->slice_type) {
-	  case TYPE_P_SLICE:
-	    fc->hidden_bits_p++;
-	    break;
-	  case TYPE_B_SLICE:
-	    fc->hidden_bits_b++;
-	    break;
-	}
-	r = (((double) rand()) / ((double) RAND_MAX));
-	if (r < PROB_KEEP) {   // decide to keep or change value
-	  r = (((double) rand()) / ((double) RAND_MAX));
-	  if (r < PROB_INCREASE) {  // if changing, increase or decrease?
-	    coefs[i] += 1;
-	  } else {
-	    coefs[i] -= 1;
-	  }
-	}
-      }
-    }
-    printf("Habe for überlebt! \n");
-    addCounts(fc, fc->current_qp, fc->blocknum); 
-    printf("thread: unlocking thread mutex \n");
-    pthread_mutex_unlock(fc->thread_mutex);  // tell main that I'm finished
-    printf("thread: locking main mutex \n");
-    pthread_mutex_unlock(fc->main_mutex);  // tell main that I'm finished
-  }
-//   pthread_exit(NULL);
-}*/
-
 void myprint(char *text) {
    printf("%s", text);
 }
-
-// void simulate_hiding_plusminus(H264FeatureContext *fc) {
-//   int rc;
-// 
-//   rc = pthread_create(fc->thread, fc->thread_attr, (void *) &perform_hiding_plusminus, (void *) fc);
-//   if (rc) printf("ERROR: pthread_create failed! %i \n", rc);
-// }
-
 
 // When it comes to other embedding methods, be sure to change the method in header (init_rate_bins and init_features)
 void simulate_hiding_plusminus(H264FeatureContext *fc) {
@@ -114,52 +45,22 @@ void simulate_hiding_plusminus(H264FeatureContext *fc) {
       }
       if (coefs[i] == 2) {
 	coefs[i]++;
-      } else {
+      } else if (coefs[i] == -2) {
+	coefs[i]--;
+      } else{
+// 	r = (((double) rand()) / ((double) RAND_MAX));
+// 	if (r < PROB_KEEP) {   // decide to keep or change value
 	r = (((double) rand()) / ((double) RAND_MAX));
-	if (r < PROB_KEEP) {   // decide to keep or change value
-	  r = (((double) rand()) / ((double) RAND_MAX));
-	  if (r < PROB_INCREASE) {  // if changing, increase or decrease?
-	    coefs[i] += 1;
-	  } else {
-	    coefs[i] -= 1;
-	  }
+	if (r < PROB_INCREASE) {  // if changing, increase or decrease?
+	  coefs[i] += 1;
+	} else {
+	  coefs[i] -= 1;
 	}
+// 	}
       }
     }
   }
 }
-
-// void wait_for_simulation(H264FeatureContext* fc) {
-//   int rc;
-//   void *thread_status;
-//   
-//   rc = pthread_join(*(fc->thread), &thread_status);
-//   if (rc) printf("ERROR: pthread_join failed: %i \n", rc);
-// }
-
-
-/*void setup_ranges(int **ranges, int luma, int chroma_dc, int chroma_ac) {
-  int i;
-  
-  for (i = 0; i < 16; i++) {
-    if (luma_ranges[i] > 2)
-      ranges[0][i] = luma_ranges[i];
-    else
-      ranges[0][i] = 0;
-  }
-  for (i = 0; i < 4; i++) {
-    if (chroma_dc_ranges[i] > 2)
-      ranges[1][i] = chroma_dc_ranges[i];
-    else
-      ranges[1][i] = 0;
-  }
-  for (i = 0; i < 15; i++) {
-    if (chroma_ac_ranges[i] > 2)
-      ranges[2][i] = chroma_ac_ranges[i];
-    else
-      ranges[2][i] = 0;
-  }
-}*/
 
 int get_block_index(int n) {
   int r = -1;
@@ -176,7 +77,6 @@ int get_rate_index(double rate) {
   if (idx >= NUM_BINS) return -1;
   return idx;
 }
-
 
 void constructProperCoefArray(int *result, int *level, int *run_before, int total_coeff, int totalZeros, int blocknum, H264FeatureVector *vec) {
   int i;
@@ -233,16 +133,6 @@ void addCounts(H264FeatureContext *fc, int qp, int blocknum, int len) {
       fc->num_4x4_blocks_b++;
       break;  
   }
-  
-//   fc->vec->qp[qp]++;
-
-//   if (blocknum == -1) {
-// //     fprintf(fc->file, "blocknum is -1 o_O %i \n", n);
-//     return;
-//   }
-
-  
-//   printf("extracted qp histogram %i, %i \n", sl, blocknum);
   
 //   constructProperCoefArray(tape, level, run_before, total_coeff, totalZeros, blocknum, fc->vec);
   if (fc->extract_rate || fc->files_hist[sl] != NULL) {  // only add counts if results get stored
@@ -864,9 +754,16 @@ void writeHeader(FILE *file, char pair, char slice_type, char method, char using
   }
   fwrite(&qp_offset, sizeof(char), 1, file);
   fwrite(&qp_range, sizeof(char), 1, file);
-  for (i = 0; i < 3; i++) {
-    for (j = 0; j < num_coefs[i]; j++) {
-      fwrite(&(ranges[i][j]), sizeof(unsigned char), 1, file);
+  if (pair) {
+    for (i = 0; i < 3; i++) {
+      fwrite(&(ranges[i][0]), sizeof(unsigned char), 1, file);
+      fwrite(&(ranges[i][1]), sizeof(unsigned char), 1, file);
+    }
+  } else {
+    for (i = 0; i < 3; i++) {
+      for (j = 0; j < num_coefs[i]; j++) {
+	fwrite(&(ranges[i][j]), sizeof(unsigned char), 1, file);
+      }
     }
   }
 }
