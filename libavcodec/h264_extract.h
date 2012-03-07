@@ -19,8 +19,8 @@
 #define ACCEPT_C               6
 #define MAX_RATE               0.24
 #define NUM_BINS               12
-#define PROB_DELTA             0.05
-#define STEGF                  25
+#define PROB_DELTA             0.01
+#define STEGF                  20
 
 typedef int feature_elem;
 
