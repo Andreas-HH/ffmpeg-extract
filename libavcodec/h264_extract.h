@@ -44,6 +44,7 @@ typedef struct H264FeatureVector {
 //   int ***N;                     // [slice_type][qp][block][coef]
   int *****histograms;          // [slice_type][qp][block][coef][element]
   int *****pairs;               // [slice_type][qp][block][element_left][element_right]
+  int *****uvsv;                // [slice_type][qp][coef][element_u][element_v]  | coef=0 is DC, coef in [1..16) AC
   
   int vector_histograms_dim;
   int vector_pairs_dim;
@@ -73,7 +74,11 @@ typedef struct H264FeatureContext {
   int blocknum;
   int accept_blocks;  // bit at position blocknum tells if that block type is accepted or not  (accept & (1 << blocknum))
   double p_hide;
-  int locked_by_init;
+  int seenU;   // DC
+  int *lastU;
+  int *seenUs; // AC
+  int **lastUs;
+  int ux, uy, x, y;
 //   pthread_mutex_t *thread_mutex;
 //   pthread_mutex_t *main_mutex;
 //   pthread_attr_t *thread_attr;
@@ -104,7 +109,7 @@ void simulate_hiding_plusminus(H264FeatureContext *fc);
 // void wait_for_simulation(H264FeatureContext *fc);
 // void setup_ranges(int **ranges, int luma, int chroma_dc, int chroma_ac);
 void constructProperCoefArray(int *result, int *level, int *run_before, int total_coeff, int totalZeros, int blocknum,  H264FeatureVector *vec);
-void addCounts(H264FeatureContext* fc, int qp, int blocknum, int len);
+void addCounts(H264FeatureContext* fc, int qp, int n, int len);
 void storeCounts(H264FeatureContext *feature_context);
 void storeFeatureVectors(H264FeatureContext *feature_context);
 void refreshFeatures(H264FeatureContext *feature_context);

@@ -83,6 +83,7 @@ void constructProperCoefArray(int *result, int *level, int *run_before, int tota
   int pos;
   int zerosToSee;
   
+//   printf("constructing coef array on blocknum: %i \n", blocknum);
   for (i = 0; i < 16; i++)
     result[i] = 0;
   
@@ -105,14 +106,14 @@ void constructProperCoefArray(int *result, int *level, int *run_before, int tota
   }
 }
 
-void addCounts(H264FeatureContext *fc, int qp, int blocknum, int len) {
+void addCounts(H264FeatureContext *fc, int qp, int n, int len) {
   // need len to have correct pair counts
 //   fflush(stderr);
 //   printf("adding counts \n");
   int i, l, r;
   int coef_index;
   int *tape = fc->tape;
-//   int blocknum = get_block_index(n);
+  int blocknum = get_block_index(n);
   int qp_index = qp - QP_OFFSET;
   int sl = fc->slice_type;
   
@@ -122,7 +123,21 @@ void addCounts(H264FeatureContext *fc, int qp, int blocknum, int len) {
 // //     fprintf(fc->file, "qp out of range o_O %i \n", qp);
 //     return;
 //   }
-  
+  if (blocknum == 1) {
+    printf("n = %i, x = %i, y = %i \n", n, fc->x, fc->y);
+  }
+  if (n == 49) {
+    memcpy(fc->lastU, tape, num_coefs[1]*sizeof(int));
+    fc->seenU = 1; // it could happen that we skip one frame and align perfectly, 
+  }                // VERY unlikely though. Comparing x,y with ux,uy should be enough
+  if (n == 50 && fc->seenU && fc->ux == fc->x && fc->uy == fc->y) {
+    printf("I could count U vs V now! \n");
+    for (i = 0; i < num_coefs[1]; i++) printf("%i, ", fc->lastU[i]);
+    printf("\n");
+    for (i = 0; i < num_coefs[1]; i++) printf("%i, ", tape[i]);
+    printf("\n");
+    fc->seenU = 0;
+  }
 //   if (sl != TYPE_P_SLICE) return;  // add only P-Slices 
   if (sl == TYPE_I_SLICE) return;
   switch (sl) {
@@ -209,9 +224,9 @@ void storeFeatureVectors(H264FeatureContext* fc) {
   int sl, i, j, k, l;
   int count_h, count_p;
   int N_h, N_p;
-  long pos;
-  double sum_h, sum_p;
-  double scale_h, scale_p;
+//   long pos;
+//   double sum_h, sum_p;
+//   double scale_h, scale_p;
   FILE *current_hist_file;
   FILE *current_pair_file;
   
@@ -486,14 +501,11 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
   int i, j, k, sl;
   H264FeatureContext *fc;
   H264FeatureVector *fv;
-//   int **ranges;
-//   int ***N;
   int *****v;
   int *****w;
+  int *****u;
   int hist_dim = 0;
   int pair_dim = 0;
-//   int *dim = &hist_dim;
-//   int *mb_t;
   int *qp;
   int *tape;
   char method;
@@ -502,29 +514,18 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
   char p_h_path[512];
   char p_p_path[512];
   char *blockstring = blockstrings[accept_blocks];//"L";
-//   int num_histograms = 16+2*(4+15);
   
-//   printf("Initialising some featureset... ");
-  
-//   ranges    = malloc(3*sizeof(int*));
-//   ranges[0] = malloc(16*sizeof(int));
-//   ranges[1] = malloc(4*sizeof(int));
-//   ranges[2] = malloc(15*sizeof(int));
-//   setup_ranges(ranges, LUMA_RANGE, CHROMA_DC_RANGE, CHROMA_AC_RANGE);
-  
-//   N = av_malloc(QP_RANGE*sizeof(int**));
   v = malloc(2*sizeof(int****));
   w = malloc(2*sizeof(int****));
+  u = malloc(2*sizeof(int****));
   for (sl = 0; sl < 2; sl++) {
     v[sl] = malloc(QP_RANGE*sizeof(int***));
     w[sl] = malloc(QP_RANGE*sizeof(int***));
+    u[sl] = malloc(QP_RANGE*sizeof(int***));
     for (i = 0; i < QP_RANGE; i++) {
-  //     N[i] = av_malloc(3*sizeof(int*));
-      // setup histograms
       v[sl][i] = malloc(3*sizeof(int**));   // 3 types of blocks (Luma + Chroma DC/AC)
       w[sl][i] = malloc(3*sizeof(int**));
       for (j = 0; j < 3; j++) {
-  //       N[i][j] = av_malloc(num_coefs[j]*sizeof(int));
         // setup histograms
         v[sl][i][j] = malloc(num_coefs[j]*sizeof(int*));
         for (k = 0; k < num_coefs[j]; k++) {
@@ -536,6 +537,18 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
           w[sl][i][j][k] = malloc((2*ranges[j][1]+1)*sizeof(int));
         }
       }
+      // setup uvsv
+      u[sl][i] = malloc((num_coefs[2]+1)*sizeof(int**));
+      u[sl][i][0] = malloc((2*ranges[1][0]+1)*sizeof(int*));
+      for (k = 1; k < 2*ranges[1][0]+1; k++) {
+        u[sl][i][0][k] = malloc((2*ranges[1][0]+1)*sizeof(int));
+      }
+      for (j = 1; j < num_coefs[2]+1; j++) { // there are 16 chroma coefs
+        u[sl][i][j] = malloc((2*ranges[2][0]+1)*sizeof(int*));
+        for (k = 1; k < 2*ranges[2][0]+1; k++) {
+          u[sl][i][j][k] = malloc((2*ranges[2][0]+1)*sizeof(int));
+        }
+      }
     }
   }
   
@@ -545,18 +558,10 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
     }
     pair_dim += (2*ranges[i][0]+1) * (2*ranges[i][1]+1); // (0,0) included, other wise - 1
   }
-//   v     =   av_malloc(USED_PIXELS*FEATURE_DIMENSION*QP_RANGE*sizeof(feature_elem));
-//   mb_t  =   av_malloc(396*sizeof(int));
   qp    =   malloc(50*sizeof(int));
   fc    =   malloc(sizeof(H264FeatureContext));
   fv    =   malloc(sizeof(H264FeatureVector));
   tape  =   malloc(16*sizeof(int));  
-//   fv->N = N;
-  
-//   FILE *tmp = fopen("p.fv", "r");
-//   fread(&hist_dim, sizeof(int), 1, tmp);
-//   fclose(tmp);
-//    *dim=sizeof(int);
   
   fv->vector_histograms_dim = QP_RANGE*hist_dim;
   fv->vector_pairs_dim      = QP_RANGE*pair_dim;
@@ -564,28 +569,19 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
   fv->vector_pairs          = malloc(fv->vector_pairs_dim*sizeof(double));
   fv->histograms     = v;
   fv->pairs          = w;
-//   fv->mb_t         = mb_t;
+  fv->uvsv           = u;
   fv->qp             = qp;
   fc->vec            = fv;
-//   fc->thread_mutex   = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));  // unlock from main notifies all threads that try to lock this mutex
-//   fc->main_mutex     = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));  // used to notfy main thread that all work is finished in detached thread
-//   fc->thread_attr    = (pthread_attr_t*) malloc(sizeof(pthread_attr_t));
-//   fc->thread         = (pthread_t*) malloc(sizeof(pthread_t));
-//   fc->logfile        = fopen("features.log", "w"); // fclose(file)
   fc->files_hist     = malloc(2*sizeof(FILE*));
   fc->files_pair     = malloc(2*sizeof(FILE*));
   fc->extract_rate   = extract_rate;
   if (p_hide < 0) {
     fc->files_hist[0]  = fopen("clean/p_histograms.fv", "a");
-//     fc->files_hist[1]  = fopen("clean/b_histograms.fv", "a");
     fc->files_hist[1] = NULL;
     fc->files_pair[0]  = fopen("clean/p_pairs.fv", "a");
-//     fc->files_pair[1]  = fopen("clean/b_pairs.fv", "a");
     fc->files_pair[1] = NULL;
   } else {
-//     printf("opening files ");
     if (extract_rate) {
-//       printf("using rate \n");
       fc->rate_bins_hist = bins_h;
       fc->rate_bins_pair = bins_p;
       
@@ -594,19 +590,14 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
       fc->files_pair[0] = NULL;
       fc->files_pair[1] = NULL;
     } else {
-//       printf("opening prob files \n");
       sprintf(p_h_path, "%s/%s/prob/p_hist/p_hist_prob_%i.fv", method_name, blockstring, (int) (p_hide*1000.));
       sprintf(p_p_path, "%s/%s/prob/p_pair/p_pair_prob_%i.fv", method_name, blockstring, (int) (p_hide*1000.));
       sprintf(b_h_path, "%s/%s/prob/b_hist/b_hist_prob_%i.fv", method_name, blockstring, (int) (p_hide*1000.));
       sprintf(b_p_path, "%s/%s/prob/b_pair/b_pair_prob_%i.fv", method_name, blockstring, (int) (p_hide*1000.));
-  //     printf("%s", p_h_path);
       fc->files_hist[0]  = fopen(p_h_path, "a");
       fc->files_hist[1]  = fopen(b_h_path, "a");
-//       fc->files_hist[1] = NULL;
       fc->files_pair[0]  = fopen(p_p_path, "a");
       fc->files_pair[1]  = fopen(b_p_path, "a");
-  //     fc->files_pair[0] = NULL;
-//       fc->files_pair[1] = NULL;
     }
   }
   
@@ -644,57 +635,33 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
   fc->b_slices    = 0;
   fv->vector_num  = 0;
   fc->refreshed   = 0;
-  
-//   printf("Done. \n");
-//   if (!(p_hide < 0)) {
-//     pthread_mutex_init(fc->thread_mutex, NULL);
-//     pthread_mutex_init(fc->main_mutex, NULL);
-//     pthread_attr_init(fc->thread_attr);
-//     pthread_attr_setdetachstate(fc->thread_attr, PTHREAD_CREATE_DETACHED);
-//     printf("init: locking thread mutex \n");
-//     pthread_mutex_lock(fc->thread_mutex);
-//     pthread_create(fc->thread, fc->thread_attr, (void *) &perform_hiding_plusminus, (void *) fc);
-//     fc->locked_by_init = 1;
-//   }
-//   printf("init done! \n");
-  
+  fc->lastU = (int*) malloc(num_coefs[1]*sizeof(int));
+  fc->seenUs = (int*) malloc(num_coefs[2]*sizeof(int));
+  fc->lastUs = (int**) malloc(num_coefs[2]*sizeof(int*));
+  for (i = 0; i < num_coefs[2]; i++) {
+    fc->lastUs[i] = (ranges[2][i]*sizeof(int));
+  }
+
   return fc;
-//   h->feature_context = fc;
 }
 
 void close_features(H264FeatureContext* fc) {
   int i, j, k, sl;
-//   H264FeatureContext *fc = h->feature_context;
-//   printf("Closing features... \n");
-//   storeCounts(fc);
   storeFeatureVectors(fc);
   
-//   printf("close: storing done \n");
-//   fflush(fc->logfile);
-//   fclose(fc->logfile);
-//   printf("close: done logfile \n");
   if (fc->files_hist[0] != NULL) {
-//     fflush(fc->files_hist[0]);
     fclose(fc->files_hist[0]);
   }
-//   printf("close: done p_hist \n");
   if (fc->files_hist[1] != NULL) {
-//     fflush(fc->files_hist[1]);
     fclose(fc->files_hist[1]);
   }
-//   printf("close: done b_hist \n");
   if (fc->files_pair[0] != NULL) {
-//     fflush(fc->files_pair[0]);
     fclose(fc->files_pair[0]);
   }
-//   printf("close: done p_pair \n");
   if (fc->files_pair[1] != NULL) {
-//     fflush(fc->files_pair[1]);
     fclose(fc->files_pair[1]);
   }
-//   printf("close: done b_pair \n");
 
-//   printf("close: closed all files \n");
   for (sl = 0; sl < 2; sl++) {
     for (i = 0; i < QP_RANGE; i++) {
       for (j = 0; j < 3; j++) {
@@ -704,33 +671,36 @@ void close_features(H264FeatureContext* fc) {
         for (k = 0; k < 2*ranges[j][0]+1; k++) {
           free(fc->vec->pairs[sl][i][j][k]);
         }
-  //       av_free(fc->vec->N[i][j]);
         free(fc->vec->histograms[sl][i][j]);
         free(fc->vec->pairs[sl][i][j]);
       }
-  //     av_free(fc->vec->N[i]);
+      // free uvsv
+      for (k = 1; k < 2*ranges[1][0]+1; k++) {
+        free(fc->vec->uvsv[sl][i][0][k]);
+      }
+      free(fc->vec->uvsv[sl][i][0]);
+      for (j = 1; j < num_coefs[2]+1; j++) { // there are 16 chroma coefs
+        for (k = 1; k < 2*ranges[2][0]+1; k++) {
+          free(fc->vec->uvsv[sl][i][j][k]);
+        }
+        free(fc->vec->uvsv[sl][i][j]);
+      }
       free(fc->vec->histograms[sl][i]);
       free(fc->vec->pairs[sl][i]);
+      free(fc->vec->uvsv[sl][i]);
     }
-  //   av_free(fc->vec->N);
     free(fc->vec->histograms[sl]);
     free(fc->vec->pairs[sl]);
+    free(fc->vec->uvsv[sl]);
   }
-//   printf("close: fc->vec nearly down \n");
   free(fc->vec->histograms);
   free(fc->vec->pairs);
+  free(fc->vec->uvsv);
   free(fc->vec->vector_histograms);
   free(fc->vec->vector_pairs);
   
-//   free(fc->histogram_ranges[0]);
-//   free(fc->histogram_ranges[1]);
-//   free(fc->histogram_ranges[2]);
-//   free(fc->histogram_ranges);
-//   printf("close: fast fertig \n");
-//   free(fc->thread_attr);
-//   free(fc->thread);
   free(fc->tape);
-//   av_free(fc->vec->mb_t);
+  free(fc->lastU);
   free(fc->vec->qp);
   free(fc->vec);
   free(fc);
