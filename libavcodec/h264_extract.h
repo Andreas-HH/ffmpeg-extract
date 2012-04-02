@@ -74,9 +74,9 @@ typedef struct H264FeatureContext {
   int blocknum;
   int accept_blocks;  // bit at position blocknum tells if that block type is accepted or not  (accept & (1 << blocknum))
   double p_hide;
-  int seenU;   // DC
-  int *lastU;
-  int *seenUs; // AC
+// //   int seenU;   // DC
+//   int *lastU;
+  int *seenUs; // [0] = DC, otheriwse = AC, ranges from 0 to 4
   int **lastUs;
   int ux, uy, x, y;
 //   pthread_mutex_t *thread_mutex;

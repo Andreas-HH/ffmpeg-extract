@@ -119,27 +119,10 @@ void addCounts(H264FeatureContext *fc, int qp, int n, int len) {
   
   if (blocknum == -1 || qp_index < 0 || qp_index >= QP_RANGE)
     return;
-//     if (qp_index < 0 || qp_index >= QP_RANGE) {
-// //     fprintf(fc->file, "qp out of range o_O %i \n", qp);
-//     return;
-//   }
-  if (blocknum == 1) {
-    printf("n = %i, x = %i, y = %i \n", n, fc->x, fc->y);
-  }
-  if (n == 49) {
-    memcpy(fc->lastU, tape, num_coefs[1]*sizeof(int));
-    fc->seenU = 1; // it could happen that we skip one frame and align perfectly, 
-  }                // VERY unlikely though. Comparing x,y with ux,uy should be enough
-  if (n == 50 && fc->seenU && fc->ux == fc->x && fc->uy == fc->y) {
-    printf("I could count U vs V now! \n");
-    for (i = 0; i < num_coefs[1]; i++) printf("%i, ", fc->lastU[i]);
-    printf("\n");
-    for (i = 0; i < num_coefs[1]; i++) printf("%i, ", tape[i]);
-    printf("\n");
-    fc->seenU = 0;
-  }
+
 //   if (sl != TYPE_P_SLICE) return;  // add only P-Slices 
   if (sl == TYPE_I_SLICE) return;
+  // probably want to count bpnc later!
   switch (sl) {
     case TYPE_P_SLICE:
       fc->num_4x4_blocks_p++;
@@ -175,6 +158,35 @@ void addCounts(H264FeatureContext *fc, int qp, int n, int len) {
       if (r < 0 || r > 2*ranges[blocknum][1]) continue;
       fc->vec->pairs[sl][qp_index][blocknum][l][r]++;
     }
+  }
+  // UvsV
+  if (n == 49) {
+    memcpy(fc->lastUs[0], tape, num_coefs[1]*sizeof(int));
+    fc->seenUs[0] = 1; // it could happen that we skip one frame and align perfectly, 
+  }                // VERY unlikely though. Comparing x,y with ux,uy should be enough
+  if (n == 50 && fc->seenUs[0] && fc->ux == fc->x && fc->uy == fc->y) {
+    for (i = 0; i < num_coefs[1]; i++) {
+      l = fc->lastUs[0][i] + ranges[1][0];
+      r = tape[i+1] + ranges[1][0];
+      if (l < 0 || l > 2*ranges[1][0]) continue;
+      if (r < 0 || r > 2*ranges[1][0]) continue;
+      fc->vec->uvsv[sl][qp_index][0][l][r]++;
+    }
+    fc->seenUs[0] = 0;
+  }
+  if (n >= 16 && n <= 19) {
+    memcpy(fc->lastUs[n-15], tape, num_coefs[2]*sizeof(int));
+    fc->seenUs[n-15] = 1;
+  }
+  if ((n >= 32 && n <= 35) && fc->seenUs[n-31] && fc->ux == fc->x && fc->uy == fc->y) {
+    for (i = 0; i < num_coefs[2]; i++) {
+      l = fc->lastUs[n-31][i] + ranges[2][i];
+      r = tape[i+1] + ranges[2][i];
+      if (l < 0 || l > 2*ranges[2][i]) continue;
+      if (r < 0 || r > 2*ranges[2][i]) continue;
+      fc->vec->uvsv[sl][qp_index][i+1][l][r]++;
+    }
+    fc->seenUs[n-31] = 0;
   }
 }
 
@@ -402,6 +414,19 @@ void refreshFeatures(H264FeatureContext* fc) {
           }
         }
       }
+      // UvsV
+      for (k = 0; k < 2*ranges[1][0]+1; k++) {
+        for (l = 0; l < 2*ranges[1][0]+1; l++) {
+          fc->vec->uvsv[sl][i][0][k][l] = 0;
+        }
+      }
+      for (j = 1; j < 16; j++) {
+	for (k = 0; k < 2*ranges[2][j-1]+1; k++) {
+          for (l = 0; l < 2*ranges[2][j-1]+1; l++) {
+            fc->vec->uvsv[sl][i][j][k][l] = 0;
+          }
+        }
+      }
     }
   }
 //   for (i = 0; i < fc->vec->vector_histograms_dim; i++)
@@ -431,6 +456,8 @@ FILE**** init_rate_bins(char pair, char *method_name, int dim) {
   char *type = types[pair];   // a bit tricky but should work if we only have histograms and pairs, maybe giving the string and then a hastable on int is better style
   double rate;
   char using_rate = 1;
+  
+//   printf("init rate bins \n");
   
   result = (FILE****) malloc(8*sizeof(FILE***)); // accept: [0..7]
   for (i = 0; i < 8; i++) {
@@ -462,7 +489,7 @@ FILE**** init_rate_bins(char pair, char *method_name, int dim) {
 //         fwrite(&dim, sizeof(int), 1, result[i][1][j]);
     }
   }
-  
+//   printf("done init ratebins \n");
   return result;
 }
 
@@ -498,6 +525,7 @@ void close_rate_bins(FILE**** bins) {
 
 
 H264FeatureContext* init_features(char* method_name, int accept_blocks, double p_hide, FILE**** bins_h, FILE**** bins_p, int extract_rate) {
+//   printf("init features \n");
   int i, j, k, sl;
   H264FeatureContext *fc;
   H264FeatureVector *fv;
@@ -538,20 +566,20 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
         }
       }
       // setup uvsv
-      u[sl][i] = malloc((num_coefs[2]+1)*sizeof(int**));
+      u[sl][i] = malloc(16*sizeof(int**));
       u[sl][i][0] = malloc((2*ranges[1][0]+1)*sizeof(int*));
-      for (k = 1; k < 2*ranges[1][0]+1; k++) {
+      for (k = 0; k < 2*ranges[1][0]+1; k++) {
         u[sl][i][0][k] = malloc((2*ranges[1][0]+1)*sizeof(int));
       }
-      for (j = 1; j < num_coefs[2]+1; j++) { // there are 16 chroma coefs
-        u[sl][i][j] = malloc((2*ranges[2][0]+1)*sizeof(int*));
-        for (k = 1; k < 2*ranges[2][0]+1; k++) {
-          u[sl][i][j][k] = malloc((2*ranges[2][0]+1)*sizeof(int));
+      for (j = 1; j < 16; j++) { // there are 16 chroma ac coefs
+        u[sl][i][j] = malloc((2*ranges[2][j-1]+1)*sizeof(int*));
+        for (k = 0; k < 2*ranges[2][j-1]+1; k++) {
+          u[sl][i][j][k] = malloc((2*ranges[2][j-1]+1)*sizeof(int));
         }
       }
     }
   }
-  
+
   for (i = 0; i < 3; i++) { // scan through blocks
     for (j = 0; j < num_coefs[i]; j++) {
       hist_dim += 2*ranges[i][j] + 1;
@@ -635,17 +663,19 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
   fc->b_slices    = 0;
   fv->vector_num  = 0;
   fc->refreshed   = 0;
-  fc->lastU = (int*) malloc(num_coefs[1]*sizeof(int));
-  fc->seenUs = (int*) malloc(num_coefs[2]*sizeof(int));
-  fc->lastUs = (int**) malloc(num_coefs[2]*sizeof(int*));
-  for (i = 0; i < num_coefs[2]; i++) {
-    fc->lastUs[i] = (ranges[2][i]*sizeof(int));
+//   fc->lastU = (int*) malloc(num_coefs[1]*sizeof(int));
+  fc->seenUs = (int*) malloc(5*sizeof(int));
+  fc->lastUs = (int**) malloc(5*sizeof(int*));
+  fc->lastUs[0] = (int*) malloc(num_coefs[1]*sizeof(int));
+  for (i = 1; i < 5; i++) {
+    fc->lastUs[i] = (int*) malloc(num_coefs[2]*sizeof(int));
   }
 
   return fc;
 }
 
 void close_features(H264FeatureContext* fc) {
+//   printf("closing features \n");
   int i, j, k, sl;
   storeFeatureVectors(fc);
   
@@ -661,7 +691,7 @@ void close_features(H264FeatureContext* fc) {
   if (fc->files_pair[1] != NULL) {
     fclose(fc->files_pair[1]);
   }
-
+//   printf("about to free \n");
   for (sl = 0; sl < 2; sl++) {
     for (i = 0; i < QP_RANGE; i++) {
       for (j = 0; j < 3; j++) {
@@ -674,13 +704,14 @@ void close_features(H264FeatureContext* fc) {
         free(fc->vec->histograms[sl][i][j]);
         free(fc->vec->pairs[sl][i][j]);
       }
+//       printf("about to free uvsv \n");
       // free uvsv
       for (k = 1; k < 2*ranges[1][0]+1; k++) {
         free(fc->vec->uvsv[sl][i][0][k]);
       }
       free(fc->vec->uvsv[sl][i][0]);
-      for (j = 1; j < num_coefs[2]+1; j++) { // there are 16 chroma coefs
-        for (k = 1; k < 2*ranges[2][0]+1; k++) {
+      for (j = 1; j < 16; j++) { // there are 16 chroma coefs
+        for (k = 0; k < 2*ranges[2][j-1]+1; k++) {
           free(fc->vec->uvsv[sl][i][j][k]);
         }
         free(fc->vec->uvsv[sl][i][j]);
@@ -699,8 +730,13 @@ void close_features(H264FeatureContext* fc) {
   free(fc->vec->vector_histograms);
   free(fc->vec->vector_pairs);
   
+  for (i = 0; i < 5; i++) {
+    free(fc->lastUs[i]);
+  }
+  free(fc->lastUs);
+  free(fc->seenUs);
+  
   free(fc->tape);
-  free(fc->lastU);
   free(fc->vec->qp);
   free(fc->vec);
   free(fc);
