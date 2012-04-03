@@ -1109,8 +1109,8 @@ av_cold int ff_h264_decode_init(AVCodecContext *avctx){
     
     h->feature_context = init_features("", 1, -1., NULL, NULL, 0);
 //     myprint("Opening rate bins! \n");
-    h->rate_bins_hist = init_rate_bins(0, "plus_minus", h->feature_context->vec->vector_histograms_dim);
-    h->rate_bins_pair = init_rate_bins(1, "plus_minus", h->feature_context->vec->vector_pairs_dim);
+//     h->rate_bins_hist = init_rate_bins(0, "plus_minus", h->feature_context->vec->vector_histograms_dim);
+//     h->rate_bins_pair = init_rate_bins(1, "plus_minus", h->feature_context->vec->vector_pairs_dim);
 //     myprint("Have reate bins! \n");
 //     close_rate_bins(h->rate_bins_hist);
     stegf = STEGF;
@@ -1118,13 +1118,13 @@ av_cold int ff_h264_decode_init(AVCodecContext *avctx){
     h->num_stego_features = 3*stegf;
     h->stego_features = (H264FeatureContext**) av_malloc(h->num_stego_features*sizeof(H264FeatureContext*));
     for (i = 0; i < stegf; i++) {
-      h->stego_features[i] = init_features("plus_minus", ACCEPT_LC, PROB_DELTA*(i+1), h->rate_bins_hist, h->rate_bins_pair, 0);
+      h->stego_features[i] = init_features("plus_minus", ACCEPT_LC, PROB_DELTA*(i+1), NULL, NULL, 0);
     }
     for (i = 0; i < stegf; i++) {
-      h->stego_features[stegf+i] = init_features("plus_minus", ACCEPT_C, PROB_DELTA*(i+1), h->rate_bins_hist, h->rate_bins_pair, 0);
+      h->stego_features[stegf+i] = init_features("plus_minus", ACCEPT_C, PROB_DELTA*(i+1), NULL, NULL, 0);
     }
     for (i = 0; i < stegf; i++) {
-      h->stego_features[2*stegf+i] = init_features("plus_minus", ACCEPT_L, PROB_DELTA*(i+1), h->rate_bins_hist, h->rate_bins_pair, 0);
+      h->stego_features[2*stegf+i] = init_features("plus_minus", ACCEPT_L, PROB_DELTA*(i+1), NULL, NULL, 0);
     }
 //     myprint("initialized all stego features \n");
 //     h->rate_bins = (FILE**) av_malloc(100*sizeof(FILE*));
@@ -2554,17 +2554,17 @@ static int decode_slice_header(H264Context *h, H264Context *h0){
     
     if (slice_type == AV_PICTURE_TYPE_I) {
       h->feature_context->slice_type = TYPE_I_SLICE;
-      h->feature_context->i_slices++;
+//       h->feature_context->i_slices++;
       for (i = 0; i < h->num_stego_features; i++)
 	h->stego_features[i]->slice_type = TYPE_I_SLICE;
     } else if (slice_type == AV_PICTURE_TYPE_P) {
       h->feature_context->slice_type = TYPE_P_SLICE;
-      h->feature_context->p_slices++;
+//       h->feature_context->p_slices++;
       for (i = 0; i < h->num_stego_features; i++)
 	h->stego_features[i]->slice_type = TYPE_P_SLICE;
     } else if (slice_type == AV_PICTURE_TYPE_B) {
       h->feature_context->slice_type = TYPE_B_SLICE;
-      h->feature_context->b_slices++;
+//       h->feature_context->b_slices++;
       for (i = 0; i < h->num_stego_features; i++)
 	h->stego_features[i]->slice_type = TYPE_B_SLICE;
     }
@@ -4214,8 +4214,8 @@ av_cold int ff_h264_decode_end(AVCodecContext *avctx)
     close_features(h->feature_context);
 //     myprint("about to free features \n");
     av_free(h->stego_features);
-    close_rate_bins(h->rate_bins_hist);
-    close_rate_bins(h->rate_bins_pair);
+//     close_rate_bins(h->rate_bins_hist);
+//     close_rate_bins(h->rate_bins_pair);
     ff_h264_free_context(h);
 
     MPV_common_end(s);
