@@ -533,7 +533,7 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
 // 	  h->s.qscale-QP_OFFSET < 0 || h->s.qscale-QP_OFFSET > QP_RANGE)
 // 	continue;
       memcpy(h->stego_features[i]->tape, proper_coefs, 16*sizeof(int));
-      h->stego_features[i]->blocknum = get_block_index(n);
+//       h->stego_features[i]->blocknum = get_block_index(n);
 //       simulate_hiding_plusminus(h->stego_features[i], 1);
       addCounts(h->stego_features[i], h->s.qscale, n, total_coeff+totalZeros);
     }

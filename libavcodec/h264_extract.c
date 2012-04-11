@@ -13,21 +13,35 @@ void myprint(char *text) {
 }
 
 // When it comes to other embedding methods, be sure to change the method in header (init_rate_bins and init_features)
-void simulate_hiding_plusminus(H264FeatureContext *fc, int thresh) {
+void simulate_hiding_plusminus(H264FeatureContext* fc, int blocknum, int thresh) {
   int i;
   int *coefs = fc->tape;
+  int min;
   double r;
   int sl = fc->slice_type;
   
 //   if (fc->accept_blocks == 7) printf("starting simulation \n");
   
 //   if (sl == TYPE_I_SLICE) return;
-  if (!(fc->accept_blocks & (1 << fc->blocknum))) {
-    if (fc->accept_blocks == 7) printf(";_;, %i \n", fc->blocknum);
+  if (!(fc->accept_blocks & (1 << blocknum))) {
     return;
   }
+  
+  switch (blocknum) {
+    case 0:
+      min = MIN_COEF-1;
+      break;
+    case 1:
+      if (MIN_COEF > 1) 
+	return; // we only have first coefficients here
+      min = 0;
+      break;
+    case 2:
+      min = max(MIN_COEF-2, 0);
+      break;
+  }
 
-  for (i = 0; i < num_coefs[fc->blocknum]; i++) {
+  for (i = min; i < num_coefs[blocknum]; i++) {
     if (coefs[i]<thresh && coefs[i]>-thresh) continue;
     r = (((double) rand()) / ((double) RAND_MAX));
 //     printf("shall I hide something? \n");
@@ -68,12 +82,12 @@ int get_block_index(int n) {
   
   return r;
 }
-
+/*
 int get_rate_index(double rate) {
   int idx = (int) ((rate/MAX_RATE)*((double) NUM_BINS) + 0.5);
   if (idx >= NUM_BINS) return -1;
   return idx;
-}
+}*/
 
 void constructProperCoefArray(int *result, int *level, int *run_before, int total_coeff, int totalZeros, int blocknum, H264FeatureVector *vec) {
   int i;
@@ -105,7 +119,7 @@ void addCounts(H264FeatureContext *fc, int qp, int n, int len) {
   int qp_index = qp - QP_OFFSET;
   int sl = fc->slice_type;
   
-  if (fc->accept_blocks == 7 && blocknum != fc->blocknum) printf(";_; \n");
+//   if (fc->accept_blocks == 7 && blocknum != fc->blocknum) printf(";_; \n");
   
   if (blocknum == -1 || qp_index < 0 || qp_index >= QP_RANGE)
     return;
@@ -113,7 +127,7 @@ void addCounts(H264FeatureContext *fc, int qp, int n, int len) {
 //   if (sl != TYPE_P_SLICE) return;  // add only P-Slices 
   if (sl == TYPE_I_SLICE) return;
   
-  simulate_hiding_plusminus(fc, 5);
+  simulate_hiding_plusminus(fc, blocknum, THRESHOLD);
   
   // histograms
   for (i = 0; i < len; i++) { // num_coefs[blocknum]
@@ -507,7 +521,7 @@ void writeHeader(FILE *file, char pair, char slice_type, char method, char using
   char qp_offset = QP_OFFSET;
   char qp_range = QP_RANGE;
    
-  fwrite(&pair, sizeof(char), 1, file);
+//   fwrite(&pair, sizeof(char), 1, file);
   fwrite(&slice_type, sizeof(char), 1, file);
   fwrite(&method, sizeof(char), 1, file);
   if (method != 0) {  // don't write a rate/accept for clean features
