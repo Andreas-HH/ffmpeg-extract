@@ -324,14 +324,14 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
   int i, j, k, sl;
   H264FeatureContext *fc;
   H264FeatureVector *fv;
-  long *****v;
-  long *****w;
-  long *****u;
+  uint64_t *****v;
+  uint64_t *****w;
+  uint64_t *****u;
   int hist_dim = 0;
   int pair_dim = 0;
   int uvsv_dim = 0;
   int *tape;
-  char method;
+//   char method;
   char b_h_path[512];
   char b_p_path[512];
   char p_h_path[512];
@@ -419,10 +419,10 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
 //   if (p_hide < 0) {
 //     method = 0;
 //   } else {
-  method = METHOD;
+//   method = METHOD;
 //   }
-  writeHeader(fc->files_hist[0], 0, TYPE_P_SLICE, method, p_hide, accept_blocks, qp);
-  writeHeader(fc->files_hist[1], 0, TYPE_B_SLICE, method, p_hide, accept_blocks, qp);
+  writeHeader(fc->files_hist[0], 0, TYPE_P_SLICE, METHOD, p_hide, accept_blocks, qp);
+  writeHeader(fc->files_hist[1], 0, TYPE_B_SLICE, METHOD, p_hide, accept_blocks, qp);
 
   fc->qp = qp;
   fc->tape = tape;
