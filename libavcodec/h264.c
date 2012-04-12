@@ -1119,7 +1119,7 @@ av_cold int ff_h264_decode_init(AVCodecContext *avctx){
     h->stego_features = (H264FeatureContext**) av_malloc(h->num_stego_features*sizeof(H264FeatureContext*));
     for (j = 0; j < QP_JUMPS; j++) {
       for (i = 0; i < stegf; i++) {
-	h->stego_features[i + 1*j*stegf] = init_features("plus_minus", 0, PROB_DELTA*(i+1), QP_OFFSET + j*QP_DELTA);
+	h->stego_features[i + 1*j*stegf] = init_features("plus_minus", ACCEPT_LC, PROB_DELTA*(i+1), QP_OFFSET + j*QP_DELTA);
       }
 //       for (i = 0; i < stegf; i++) {
 // 	h->stego_features[stegf+i + 3*j*stegf] = init_features("plus_minus", ACCEPT_C, PROB_DELTA*(i+1), QP_OFFSET + j*QP_DELTA);

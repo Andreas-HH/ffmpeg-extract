@@ -191,12 +191,12 @@ void storeFeatureVectors(H264FeatureContext* fc) {
   }
   
   for (sl = 0; sl < 2; sl++) {  // DROPPING B-FRAMES !!!
-    count_h = 0ll;
-    count_p = 0ll;
-    count_u = 0ll;
-    N_h = 0ll;
-    N_p = 0ll;
-    N_u = 0ll;
+    count_h = 0ull;
+    count_p = 0ull;
+    count_u = 0ull;
+    N_h = 0ull;
+    N_p = 0ull;
+    N_u = 0ull;
     for (i = 0; i < QP_RANGE; i++) {
       for (j = 0; j < 3; j++) {
         // histograms
@@ -239,6 +239,7 @@ void storeFeatureVectors(H264FeatureContext* fc) {
         }
       }
     }
+//     printf("store: %d, %d, %d \n", (uint32_t) count_h, (uint32_t) count_p, (uint32_t) count_u);
     
 //     scale = 1./(double) N_h;
 //     for (i = 0; i < fc->vec->vector_histograms_dim; i++) {
@@ -266,10 +267,12 @@ void storeFeatureVectors(H264FeatureContext* fc) {
       fc->num_vectors_b++;
       fc->bpnc_b += (double) fc->hidden_bits_b / (double) fc->num_coefs_b;
     }
+    
+//     printf("%i, %i, %i \n", fc->vec->vector_histograms_dim, fc->vec->vector_pairs_dim, fc->vec->vector_uvsv_dim);
 
-    fwrite(fc->vec->vector_histograms, sizeof(uint64_t), fc->vec->vector_histograms_dim, fc->files_hist[sl]); // double
-    fwrite(fc->vec->vector_pairs, sizeof(uint64_t), fc->vec->vector_pairs_dim, fc->files_hist[sl]); // double
-    fwrite(fc->vec->vector_uvsv, sizeof(uint64_t), fc->vec->vector_uvsv_dim, fc->files_hist[sl]); // double
+    fwrite(fc->vec->vector_histograms, sizeof(store_elem), fc->vec->vector_histograms_dim, fc->files_hist[sl]); // double
+    fwrite(fc->vec->vector_pairs, sizeof(store_elem), fc->vec->vector_pairs_dim, fc->files_hist[sl]); // double
+    fwrite(fc->vec->vector_uvsv, sizeof(store_elem), fc->vec->vector_uvsv_dim, fc->files_hist[sl]); // double
   }
   
   fc->refreshed = 0;
@@ -278,6 +281,7 @@ void storeFeatureVectors(H264FeatureContext* fc) {
 
 void refreshFeatures(H264FeatureContext* fc) {
   int i, j, k, l, sl;
+  uint32_t count_h = 0ul, count_p = 0ul, count_u = 0ul;
   
   fc->hidden_bits_b = 0ull;
   fc->hidden_bits_p = 0ull;
@@ -289,14 +293,15 @@ void refreshFeatures(H264FeatureContext* fc) {
       for (j = 0; j < 3; j++) {
         // histograms
         for (k = 0; k < num_coefs[j]; k++) {
-//           feature_context->vec->N[i][j][k] = 0;
-          for (l = 0; l < 2*ranges[j][k]; l++) {
+          for (l = 0; l < 2*ranges[j][k]+1; l++) {
+	    count_h++;
             fc->vec->histograms[sl][i][j][k][l] = 0ul;
           }
         }
         // pairs
         for (k = 0; k < 2*ranges[j][0]+1; k++) {
           for (l = 0; l < 2*ranges[j][1]+1; l++) {
+	    count_p++;
             fc->vec->pairs[sl][i][j][k][l] = 0ul;
           }
         }
@@ -304,16 +309,20 @@ void refreshFeatures(H264FeatureContext* fc) {
       // UvsV
       for (k = 0; k < 2*ranges[1][0]+1; k++) {
         for (l = 0; l < 2*ranges[1][0]+1; l++) {
+	  count_u++;
           fc->vec->uvsv[sl][i][0][k][l] = 0ul;
         }
       }
       for (j = 1; j < 16; j++) {
+	if (ranges[2][j-1] == 0) break;
 	for (k = 0; k < 2*ranges[2][j-1]+1; k++) {
           for (l = 0; l < 2*ranges[2][j-1]+1; l++) {
+	    count_u++;
             fc->vec->uvsv[sl][i][j][k][l] = 0ul;
           }
         }
       }
+//       printf("refresh: %d, %d, %d \n", count_h, count_p, count_u);
     }
   }
   
@@ -324,9 +333,9 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
   int i, j, k, sl;
   H264FeatureContext *fc;
   H264FeatureVector *fv;
-  uint64_t *****v;
-  uint64_t *****w;
-  uint64_t *****u;
+  store_elem *****v;
+  store_elem *****w;
+  store_elem *****u;
   int hist_dim = 0;
   int pair_dim = 0;
   int uvsv_dim = 0;
@@ -338,38 +347,38 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
   char p_p_path[512];
   char *blockstring = blockstrings[accept_blocks];//"L";
     
-  v = malloc(2*sizeof(uint64_t****));
-  w = malloc(2*sizeof(uint64_t****));
-  u = malloc(2*sizeof(uint64_t****));
+  v = malloc(2*sizeof(store_elem****));
+  w = malloc(2*sizeof(store_elem****));
+  u = malloc(2*sizeof(store_elem****));
   for (sl = 0; sl < 2; sl++) {
-    v[sl] = malloc(QP_RANGE*sizeof(uint64_t***));
-    w[sl] = malloc(QP_RANGE*sizeof(uint64_t***));
-    u[sl] = malloc(QP_RANGE*sizeof(uint64_t***));
+    v[sl] = malloc(QP_RANGE*sizeof(store_elem***));
+    w[sl] = malloc(QP_RANGE*sizeof(store_elem***));
+    u[sl] = malloc(QP_RANGE*sizeof(store_elem***));
     for (i = 0; i < QP_RANGE; i++) {
-      v[sl][i] = malloc(3*sizeof(uint64_t**));   // 3 types of blocks (Luma + Chroma DC/AC)
-      w[sl][i] = malloc(3*sizeof(uint64_t**));
+      v[sl][i] = malloc(3*sizeof(store_elem**));   // 3 types of blocks (Luma + Chroma DC/AC)
+      w[sl][i] = malloc(3*sizeof(store_elem**));
       for (j = 0; j < 3; j++) {
         // setup histograms
-        v[sl][i][j] = malloc(num_coefs[j]*sizeof(uint64_t*));
+        v[sl][i][j] = malloc(num_coefs[j]*sizeof(store_elem*));
         for (k = 0; k < num_coefs[j]; k++) {
-          v[sl][i][j][k] = malloc((2*ranges[j][k]+1)*sizeof(uint64_t));
+          v[sl][i][j][k] = malloc((2*ranges[j][k]+1)*sizeof(store_elem));
         }
         // setup pairs
-        w[sl][i][j] = malloc((2*ranges[j][0]+1)*sizeof(uint64_t*)); // +1 for the zero
+        w[sl][i][j] = malloc((2*ranges[j][0]+1)*sizeof(store_elem*)); // +1 for the zero
         for (k = 0; k < 2*ranges[j][0]+1; k++) {
-          w[sl][i][j][k] = malloc((2*ranges[j][1]+1)*sizeof(uint64_t));
+          w[sl][i][j][k] = malloc((2*ranges[j][1]+1)*sizeof(store_elem));
         }
       }
       // setup uvsv
-      u[sl][i] = malloc(16*sizeof(uint64_t**));
-      u[sl][i][0] = malloc((2*ranges[1][0]+1)*sizeof(uint64_t*));
+      u[sl][i] = malloc(16*sizeof(store_elem**));
+      u[sl][i][0] = malloc((2*ranges[1][0]+1)*sizeof(store_elem*));
       for (k = 0; k < 2*ranges[1][0]+1; k++) {
-        u[sl][i][0][k] = malloc((2*ranges[1][0]+1)*sizeof(uint64_t));
+        u[sl][i][0][k] = malloc((2*ranges[1][0]+1)*sizeof(store_elem));
       }
       for (j = 1; j < 16; j++) { // there are 16 chroma ac coefs
-        u[sl][i][j] = malloc((2*ranges[2][j-1]+1)*sizeof(uint64_t*));
+        u[sl][i][j] = malloc((2*ranges[2][j-1]+1)*sizeof(store_elem*));
         for (k = 0; k < 2*ranges[2][j-1]+1; k++) {
-          u[sl][i][j][k] = malloc((2*ranges[2][j-1]+1)*sizeof(uint64_t));
+          u[sl][i][j][k] = malloc((2*ranges[2][j-1]+1)*sizeof(store_elem));
         }
       }
     }
@@ -393,9 +402,9 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
   fv->vector_histograms_dim = QP_RANGE*hist_dim;
   fv->vector_pairs_dim      = QP_RANGE*pair_dim;
   fv->vector_uvsv_dim       = QP_RANGE*uvsv_dim;
-  fv->vector_histograms     = malloc(fv->vector_histograms_dim*sizeof(uint64_t));
-  fv->vector_pairs          = malloc(fv->vector_pairs_dim*sizeof(uint64_t));
-  fv->vector_uvsv           = malloc(fv->vector_uvsv_dim*sizeof(uint64_t));
+  fv->vector_histograms     = malloc(fv->vector_histograms_dim*sizeof(store_elem));
+  fv->vector_pairs          = malloc(fv->vector_pairs_dim*sizeof(store_elem));
+  fv->vector_uvsv           = malloc(fv->vector_uvsv_dim*sizeof(store_elem));
   fv->histograms     = v;
   fv->pairs          = w;
   fv->uvsv           = u;
@@ -453,8 +462,8 @@ void close_features(H264FeatureContext* fc) {
   
   if (fc->num_vectors_p != 0ull && fc->logName != 0) {
     fc->logfile = fopen(fc->logName, "a");
-    fprintf(fc->logfile, "[%s, p = %g] average p_bpnc: %g \n", blockstrings[fc->accept_blocks], fc->p_hide, fc->bpnc_p / (double) fc->num_vectors_p);
-    fprintf(fc->logfile, "[%s, p = %g] average b_bpnc: %g \n\n", blockstrings[fc->accept_blocks], fc->p_hide, fc->bpnc_b / (double) fc->num_vectors_b);
+    fprintf(fc->logfile, "[%s, p = %g] average p_bpnc: %g --- %g vectors. \n", blockstrings[fc->accept_blocks], fc->p_hide, fc->bpnc_p / (double) fc->num_vectors_p, (double) fc->num_vectors_p);
+    fprintf(fc->logfile, "[%s, p = %g] average b_bpnc: %g --- %g vectors.\n\n", blockstrings[fc->accept_blocks], fc->p_hide, fc->bpnc_b / (double) fc->num_vectors_b, (double) fc->num_vectors_b);
     fclose(fc->logfile);
     free(fc->logName);
   }

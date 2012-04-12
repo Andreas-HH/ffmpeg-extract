@@ -507,16 +507,6 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
       run_list[i] = run_before;
     }
     
-    /*for (i = 0; i < h->num_stego_features; i++) {
-      if (h->stego_features[i]->locked_by_init) 
-	h->stego_features[i]->locked_by_init = 0;
-      else {
-	myprint("cavlc: locking thread mutex \n");
-	pthread_mutex_lock(h->stego_features[i]->thread_mutex);  // stop thread from executing
-      }
-//       myprint("cavlc: locking main mutex \n");
-//       pthread_mutex_lock(h->stego_features[i]->main_mutex);  // wait for "ok" from every thread
-    }*/
     if (n == 49) { // U_DC
 //       h->feature_context->ux = h->s.mb_x;
 //       h->feature_context->uy = h->s.mb_y;

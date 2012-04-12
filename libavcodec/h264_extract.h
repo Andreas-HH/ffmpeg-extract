@@ -6,11 +6,11 @@
 #include <stdio.h>
 #include <string.h>
 
-#define METHOD                 0 // 0 = clean, 1=pm
-#define QP_RANGE               1
-#define QP_OFFSET              10
-#define QP_DELTA               1
-#define QP_JUMPS               20
+#define METHOD                 1 // 0 = clean, 1=pm
+#define QP_RANGE               0
+#define QP_OFFSET              16
+#define QP_DELTA               4
+#define QP_JUMPS               4
 #define TYPE_I_SLICE           2
 #define TYPE_P_SLICE           0
 #define TYPE_B_SLICE           1
@@ -28,6 +28,7 @@
 #define max( a, b ) ( ((a) > (b)) ? (a) : (b) )
 
 typedef int feature_elem;
+typedef uint32_t store_elem;
 
 static const char *blockstrings[8]        = {"clean", "L", "C_dc", "LC_dc", "C_ac", "LC_ac", "C", "LC"};
 static const char num_coefs[3]            =  {16, 4, 15}; // Luma, Cr DC, Cb DC, Cr AC, Cb AC
@@ -37,16 +38,16 @@ static const unsigned char ranges[3][16]  =  {{15,  11, 10,  8, 8, 8,  5, 5, 3, 
 
 typedef struct H264FeatureVector {
   int vector_num;
-  uint64_t *****histograms;          // [slice_type][qp][block][coef][element]
-  uint64_t *****pairs;               // [slice_type][qp][block][element_left][element_right]
-  uint64_t *****uvsv;                // [slice_type][qp][coef][element_u][element_v]  | coef=0 is DC, coef in [1..16) AC
+  store_elem *****histograms;          // [slice_type][qp][block][coef][element]
+  store_elem *****pairs;               // [slice_type][qp][block][element_left][element_right]
+  store_elem *****uvsv;                // [slice_type][qp][coef][element_u][element_v]  | coef=0 is DC, coef in [1..16) AC
   
   int vector_histograms_dim;
   int vector_pairs_dim;
   int vector_uvsv_dim;
-  uint64_t *vector_histograms;
-  uint64_t *vector_pairs;
-  uint64_t *vector_uvsv;
+  store_elem *vector_histograms;
+  store_elem *vector_pairs;
+  store_elem *vector_uvsv;
 } H264FeatureVector;
 
 typedef struct H264FeatureContext {
