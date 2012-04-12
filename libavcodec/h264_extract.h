@@ -6,9 +6,11 @@
 #include <stdio.h>
 #include <string.h>
 
-#define METHOD                 1 // 1=pm
-#define QP_RANGE              12
-#define QP_OFFSET             16
+#define METHOD                 0 // 0 = clean, 1=pm
+#define QP_RANGE               1
+#define QP_OFFSET              10
+#define QP_DELTA               1
+#define QP_JUMPS               20
 #define TYPE_I_SLICE           2
 #define TYPE_P_SLICE           0
 #define TYPE_B_SLICE           1
@@ -18,10 +20,10 @@
 #define ACCEPT_C               6
 // #define MAX_RATE               0.24
 // #define NUM_BINS               12
-#define PROB_DELTA             0.2
-#define STEGF                  5
+#define PROB_DELTA             0.
+#define STEGF                  1
 #define THRESHOLD              1
-#define MIN_COEF               2   // this counts from 1, coef 1 is DC coef
+#define MIN_COEF               1   // this counts from 1, coef 1 is DC coef
 
 #define max( a, b ) ( ((a) > (b)) ? (a) : (b) )
 
@@ -35,19 +37,20 @@ static const unsigned char ranges[3][16]  =  {{15,  11, 10,  8, 8, 8,  5, 5, 3, 
 
 typedef struct H264FeatureVector {
   int vector_num;
-  uint32_t *****histograms;          // [slice_type][qp][block][coef][element]
-  uint32_t *****pairs;               // [slice_type][qp][block][element_left][element_right]
-  uint32_t *****uvsv;                // [slice_type][qp][coef][element_u][element_v]  | coef=0 is DC, coef in [1..16) AC
+  uint64_t *****histograms;          // [slice_type][qp][block][coef][element]
+  uint64_t *****pairs;               // [slice_type][qp][block][element_left][element_right]
+  uint64_t *****uvsv;                // [slice_type][qp][coef][element_u][element_v]  | coef=0 is DC, coef in [1..16) AC
   
   int vector_histograms_dim;
   int vector_pairs_dim;
   int vector_uvsv_dim;
-  uint32_t *vector_histograms;
-  uint32_t *vector_pairs;
-  uint32_t *vector_uvsv;
+  uint64_t *vector_histograms;
+  uint64_t *vector_pairs;
+  uint64_t *vector_uvsv;
 } H264FeatureVector;
 
 typedef struct H264FeatureContext {
+  int qp;
   int *tape;
   int slice_type;
   int refreshed;
@@ -59,11 +62,11 @@ typedef struct H264FeatureContext {
   uint64_t num_vectors_p;
   double bpnc_b;
   double bpnc_p;
+  char *logName;
   
   // simulation parameters:
   int current_qp;
   int *proper_coefs;
-  int blocknum;
   int accept_blocks;  // bit at position blocknum tells if that block type is accepted or not  (accept & (1 << blocknum))
   double p_hide;
 
@@ -77,13 +80,12 @@ typedef struct H264FeatureContext {
 
 void myprint(char *text);
 
-H264FeatureContext* init_features(char* method_name, int accept_blocks, double p_hide, FILE**** bins_h, FILE**** bins_p, int extract_rate);
+H264FeatureContext* init_features(char* method_name, int accept_blocks, double p_hide, int qp);
 void close_features(H264FeatureContext *fc);
-void writeHeader(FILE* file, char pair, char slice_type, char method, char using_rate, double prob, char accept);
+void writeHeader(FILE *file, char pair, char slice_type, char method, double prob, char accept, int qp);
 int get_block_index(int n);
-// int get_rate_index(double rate);
 void simulate_hiding_plusminus(H264FeatureContext* fc, int blocknum, int thresh);
-void constructProperCoefArray(int *result, int *level, int *run_before, int total_coeff, int totalZeros, int blocknum,  H264FeatureVector *vec);
+void constructProperCoefArray(int* result, int* level, int* run_before, int total_coeff, int totalZeros);
 void addCounts(H264FeatureContext* fc, int qp, int n, int len);
 void storeFeatureVectors(H264FeatureContext *feature_context);
 void refreshFeatures(H264FeatureContext *feature_context);
