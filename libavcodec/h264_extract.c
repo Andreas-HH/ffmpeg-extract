@@ -462,8 +462,8 @@ void close_features(H264FeatureContext* fc) {
   
   if (fc->num_vectors_p != 0ull && fc->logName != 0) {
     fc->logfile = fopen(fc->logName, "a");
-    fprintf(fc->logfile, "[%s, p = %g] average p_bpnc: %g --- %g vectors. \n", blockstrings[fc->accept_blocks], fc->p_hide, fc->bpnc_p / (double) fc->num_vectors_p, (double) fc->num_vectors_p);
-    fprintf(fc->logfile, "[%s, p = %g] average b_bpnc: %g --- %g vectors.\n\n", blockstrings[fc->accept_blocks], fc->p_hide, fc->bpnc_b / (double) fc->num_vectors_b, (double) fc->num_vectors_b);
+    fprintf(fc->logfile, "[qp_%i, %s, p = %g] average p_bpnc: %g --- %g vectors. \n", fc->qp, blockstrings[fc->accept_blocks], fc->p_hide, fc->bpnc_p / (double) fc->num_vectors_p, (double) fc->num_vectors_p);
+    fprintf(fc->logfile, "[qp_%i, %s, p = %g] average b_bpnc: %g --- %g vectors.\n\n", fc->qp, blockstrings[fc->accept_blocks], fc->p_hide, fc->bpnc_b / (double) fc->num_vectors_b, (double) fc->num_vectors_b);
     fclose(fc->logfile);
     free(fc->logName);
   }

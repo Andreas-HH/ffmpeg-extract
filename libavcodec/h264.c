@@ -1115,18 +1115,18 @@ av_cold int ff_h264_decode_init(AVCodecContext *avctx){
 //     close_rate_bins(h->rate_bins_hist);
     stegf = STEGF;
 //     bins = 100;
-    h->num_stego_features = 1*QP_JUMPS*stegf; // 3
+    h->num_stego_features = 3*QP_JUMPS*stegf; // 3
     h->stego_features = (H264FeatureContext**) av_malloc(h->num_stego_features*sizeof(H264FeatureContext*));
     for (j = 0; j < QP_JUMPS; j++) {
       for (i = 0; i < stegf; i++) {
-	h->stego_features[i + 1*j*stegf] = init_features("plus_minus", ACCEPT_LC, PROB_DELTA*(i+1), QP_OFFSET + j*QP_DELTA);
+	h->stego_features[i + 3*j*stegf] = init_features("plus_minus", ACCEPT_LC, PROB_DELTA*(i+1), QP_OFFSET + j*QP_DELTA);
       }
-//       for (i = 0; i < stegf; i++) {
-// 	h->stego_features[stegf+i + 3*j*stegf] = init_features("plus_minus", ACCEPT_C, PROB_DELTA*(i+1), QP_OFFSET + j*QP_DELTA);
-//       }
-//       for (i = 0; i < stegf; i++) {
-// 	h->stego_features[2*stegf+i + 3*j*stegf] = init_features("plus_minus", ACCEPT_L, PROB_DELTA*(i+1), QP_OFFSET + j*QP_DELTA);
-//       }
+      for (i = 0; i < stegf; i++) {
+	h->stego_features[stegf+i + 3*j*stegf] = init_features("plus_minus", ACCEPT_C, PROB_DELTA*(i+1), QP_OFFSET + j*QP_DELTA);
+      }
+      for (i = 0; i < stegf; i++) {
+	h->stego_features[2*stegf+i + 3*j*stegf] = init_features("plus_minus", ACCEPT_L, PROB_DELTA*(i+1), QP_OFFSET + j*QP_DELTA);
+      }
     }
 //     myprint("initialized all stego features \n");
 //     h->rate_bins = (FILE**) av_malloc(100*sizeof(FILE*));
