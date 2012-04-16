@@ -418,9 +418,9 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
 //     fc->files_hist[1] = fopen(b_h_path, "a");
 //   } else {
     fc->logName = (char*) malloc(512*sizeof(char));
-    sprintf(fc->logName, "%i/%s_%i_minc_%i_qp_%i.fl", METHOD, blockstring, (int) (p_hide*1000.+0.5), MIN_COEF, qp);
-    sprintf(p_h_path, "%i/p_%s_%i_minc_%i_qp_%i.fv", METHOD, blockstring, (int) (p_hide*1000.+0.5), MIN_COEF, qp);
-    sprintf(b_h_path, "%i/b_%s_%i_minc_%i_qp_%i.fv", METHOD, blockstring, (int) (p_hide*1000.+0.5), MIN_COEF, qp);
+    sprintf(fc->logName, "%i/%s_%i_minc_%i_qp_%i.fl", METHOD, blockstring, (int) (p_hide*10000.+0.5), MIN_COEF, qp);
+    sprintf(p_h_path, "%i/p_%s_%i_minc_%i_qp_%i.fv", METHOD, blockstring, (int) (p_hide*10000.+0.5), MIN_COEF, qp);
+    sprintf(b_h_path, "%i/b_%s_%i_minc_%i_qp_%i.fv", METHOD, blockstring, (int) (p_hide*10000.+0.5), MIN_COEF, qp);
     fc->files_hist[0]  = fopen(p_h_path, "a");
     fc->files_hist[1]  = fopen(b_h_path, "a");
 //   }
@@ -458,9 +458,9 @@ H264FeatureContext* init_features(char* method_name, int accept_blocks, double p
 void close_features(H264FeatureContext* fc) {
 //   printf("closing features \n");
   int i, j, k, sl;
-  storeFeatureVectors(fc);
   
-  if (fc->num_vectors_p != 0ull && fc->logName != 0) {
+  if (fc->num_vectors_p != 0ull && fc->num_vectors_b != 0ull && fc->logName != 0) {
+    storeFeatureVectors(fc);
     fc->logfile = fopen(fc->logName, "a");
     fprintf(fc->logfile, "[qp_%i, %s, p = %g] average p_bpnc: %g --- %g vectors. \n", fc->qp, blockstrings[fc->accept_blocks], fc->p_hide, fc->bpnc_p / (double) fc->num_vectors_p, (double) fc->num_vectors_p);
     fprintf(fc->logfile, "[qp_%i, %s, p = %g] average b_bpnc: %g --- %g vectors.\n\n", fc->qp, blockstrings[fc->accept_blocks], fc->p_hide, fc->bpnc_b / (double) fc->num_vectors_b, (double) fc->num_vectors_b);
