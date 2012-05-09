@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define METHOD                 3 // 0 = clean, 1=pm
+#define METHOD                 100 // 0 = clean, 1=pm
 #define QP_RANGE               1
 #define QP_OFFSET              16
 #define QP_DELTA               4
@@ -20,9 +20,9 @@
 #define ACCEPT_C               6
 // #define MAX_RATE               0.24
 // #define NUM_BINS               12
-#define PROB_DELTA             0.001
-#define STEGF                  9
-#define THRESHOLD              4
+#define PROB_DELTA             1.
+#define STEGF                  1
+#define THRESHOLD              1
 #define MIN_COEF               1   // this counts from 1, coef 1 is DC coef
 // #define ACCEPT                 1
 
@@ -81,12 +81,15 @@ typedef struct H264FeatureContext {
 } H264FeatureContext;
 
 void myprint(char *text);
+void myRandom(double* r);
 
 H264FeatureContext* init_features(char* method_name, int accept_blocks, double p_hide, int qp);
 void close_features(H264FeatureContext *fc);
 void writeHeader(FILE *file, char pair, char slice_type, char method, double prob, char accept, int qp);
 int get_block_index(int n);
 void simulate_hiding_plusminus(H264FeatureContext* fc, int blocknum, int thresh);
+void simulate_hiding_f5(H264FeatureContext* fc, int blocknum, int thresh);
+void simulate_hiding_lsb(H264FeatureContext* fc, int blocknum, int thresh);
 void constructProperCoefArray(int* result, int* level, int* run_before, int total_coeff, int totalZeros);
 void addCounts(H264FeatureContext* fc, int qp, int n, int len);
 void storeFeatureVectors(H264FeatureContext *feature_context);

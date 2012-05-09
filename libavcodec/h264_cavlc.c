@@ -366,6 +366,7 @@ static inline int get_level_prefix(GetBitContext *gb){
  */
 static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, int n, const uint8_t *scantable, const uint32_t *qmul, int max_coeff){
     int i;
+    double r;
     MpegEncContext * const s = &h->s;
     static const int coeff_token_table_index[17]= {0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3};
     int level[16];
@@ -535,6 +536,34 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
 //       simulate_hiding_plusminus(h->stego_features[i], 1);
       addCounts(h->stego_features[i], h->s.qscale, n, total_coeff+totalZeros);
     }
+//     if (get_block_index(n) == -1 || get_block_index(n) == 0) {
+//       for (i = 0; i < total_coeff; i++) {
+// 	myRandom(&r);
+// 	if (r < 0.5) continue; // half of the coefficients don't need to be changed
+// // 	if (level[i] == 1) continue;
+// // 	level[i] = level[i] ^ 1;
+// 
+// // 	if (level[i] == 1) {
+// // 	  level[i]++;
+// // 	} else if (level[i] == -1) {
+// // 	  level[i]--;
+// // 	} else{
+// // 	  myRandom(&r);
+// // 	  if (r < PROB_INCREASE) {  // if changing, increase or decrease?
+// // 	    level[i] += 1;
+// // 	  } else {
+// // 	    level[i] -= 1;
+// // 	  }
+// // 	}
+// 
+//         if (level[i] == 1 || level[i] == -1) continue;
+// 	if (level[i] < 0) {  // if changing, increase or decrease?
+// 	  level[i] += 1;
+// 	} else {
+// 	  level[i] -= 1;
+// 	}
+//       }
+//     }
 
 // #define STORE_BLOCK(type) \
 //     scantable += zeros_left + total_coeff - 1; \

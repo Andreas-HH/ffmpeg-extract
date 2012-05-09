@@ -7,9 +7,12 @@
  Chroma AC: 16 - 19, 32 - 35
  */
 
-
 void myprint(char *text) {
    printf("%s", text);
+}
+
+void myRandom(double *r) {
+  *r = (double) rand() / (double) RAND_MAX;
 }
 
 // When it comes to other embedding methods, be sure to change the method in header (init_rate_bins and init_features)
@@ -73,6 +76,98 @@ void simulate_hiding_plusminus(H264FeatureContext* fc, int blocknum, int thresh)
   }
 }
 
+void simulate_hiding_f5(H264FeatureContext* fc, int blocknum, int thresh) {
+  int i;
+  int *coefs = fc->tape;
+  int min;
+  double r;
+  int sl = fc->slice_type;
+  
+  if (!(fc->accept_blocks & (1 << blocknum))) {
+    return;
+  }
+  
+  switch (blocknum) {
+    case 0:
+      min = MIN_COEF-1;
+      break;
+    case 1:
+      if (MIN_COEF > 1) 
+	return; // we only have first coefficients here
+      min = 0;
+      break;
+    case 2:
+      min = max(MIN_COEF-2, 0);
+      break;
+  }
+
+  for (i = min; i < num_coefs[blocknum]; i++) {
+    if (coefs[i]<=thresh && coefs[i]>=-thresh) continue;
+    r = (((double) rand()) / ((double) RAND_MAX));
+    if (r < fc->p_hide) {
+      switch (sl) {
+	case TYPE_P_SLICE:
+	  fc->hidden_bits_p++;
+	  break;
+	case TYPE_B_SLICE:
+	  fc->hidden_bits_b++;
+	  break;
+      }
+      r = (((double) rand()) / ((double) RAND_MAX));
+      if (r < 0.5) continue; // half of the coefficients don't need to be changed
+      if (coefs[i] < 0) {  // if changing, increase or decrease?
+	coefs[i] += 1;
+      } else {
+	coefs[i] -= 1;
+      }
+    }
+  }
+}
+
+void simulate_hiding_lsb(H264FeatureContext* fc, int blocknum, int thresh) {
+  int i;
+  int *coefs = fc->tape;
+  int min;
+  double r;
+  int sl = fc->slice_type;
+  
+  if (!(fc->accept_blocks & (1 << blocknum))) {
+    return;
+  }
+  
+  switch (blocknum) {
+    case 0:
+      min = MIN_COEF-1;
+      break;
+    case 1:
+      if (MIN_COEF > 1) 
+	return; // we only have first coefficients here
+      min = 0;
+      break;
+    case 2:
+      min = max(MIN_COEF-2, 0);
+      break;
+  }
+
+  for (i = min; i < num_coefs[blocknum]; i++) {
+    if (coefs[i]<2*thresh && coefs[i]>-2*thresh+2) continue;
+    r = (((double) rand()) / ((double) RAND_MAX));
+    if (r < fc->p_hide) {
+      switch (sl) {
+	case TYPE_P_SLICE:
+	  fc->hidden_bits_p++;
+	  break;
+	case TYPE_B_SLICE:
+	  fc->hidden_bits_b++;
+	  break;
+      }
+      r = (((double) rand()) / ((double) RAND_MAX));
+      if (r < 0.5) continue; // half of the coefficients don't need to be changed
+      coefs[i] = coefs[i] ^ 1;
+    }
+  }
+}
+
 int get_block_index(int n) {
   int r = -1;
   
@@ -121,6 +216,8 @@ void addCounts(H264FeatureContext *fc, int qp, int n, int len) {
 //   if (sl != TYPE_P_SLICE) return;  // add only P-Slices 
   if (sl == TYPE_I_SLICE) return;
   
+//   simulate_hiding_plusminus(fc, blocknum, THRESHOLD);
+//   simulate_hiding_f5(fc, blocknum, THRESHOLD);
   simulate_hiding_plusminus(fc, blocknum, THRESHOLD);
   
   // histograms
