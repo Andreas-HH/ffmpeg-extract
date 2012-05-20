@@ -150,7 +150,7 @@ void simulate_hiding_lsb(H264FeatureContext* fc, int blocknum, int thresh) {
   }
 
   for (i = min; i < num_coefs[blocknum]; i++) {
-    if (coefs[i]<2*thresh && coefs[i]>-2*thresh+2) continue;
+    if (coefs[i]<2*thresh && coefs[i]>=-2*thresh+2) continue;
     r = (((double) rand()) / ((double) RAND_MAX));
     if (r < fc->p_hide) {
       switch (sl) {
@@ -556,7 +556,7 @@ void close_features(H264FeatureContext* fc) {
 //   printf("closing features \n");
   int i, j, k, sl;
   
-  if (fc->num_vectors_p != 0ull && fc->num_vectors_b != 0ull && fc->logName != 0) {
+  if ((fc->num_vectors_p != 0ull || fc->num_vectors_b != 0ull) && fc->logName != 0) {
     storeFeatureVectors(fc);
     fc->logfile = fopen(fc->logName, "a");
     fprintf(fc->logfile, "[qp_%i, %s, p = %g] average p_bpnc: %g --- %g vectors. \n", fc->qp, blockstrings[fc->accept_blocks], fc->p_hide, fc->bpnc_p / (double) fc->num_vectors_p, (double) fc->num_vectors_p);
