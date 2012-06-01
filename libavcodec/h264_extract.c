@@ -53,6 +53,7 @@ void simulate_hiding_plusminus(H264FeatureContext* fc, int blocknum, int thresh)
 	case TYPE_P_SLICE:
 // 	  printf("yes! \n");
 	  fc->hidden_bits_p++;
+	  fc->hidden_bits_b++;
 	  break;
 	case TYPE_B_SLICE:
 	  fc->hidden_bits_b++;
@@ -108,6 +109,7 @@ void simulate_hiding_f5(H264FeatureContext* fc, int blocknum, int thresh) {
       switch (sl) {
 	case TYPE_P_SLICE:
 	  fc->hidden_bits_p++;
+	  fc->hidden_bits_b++;
 	  break;
 	case TYPE_B_SLICE:
 	  fc->hidden_bits_b++;
@@ -156,6 +158,7 @@ void simulate_hiding_lsb(H264FeatureContext* fc, int blocknum, int thresh) {
       switch (sl) {
 	case TYPE_P_SLICE:
 	  fc->hidden_bits_p++;
+	  fc->hidden_bits_b++;
 	  break;
 	case TYPE_B_SLICE:
 	  fc->hidden_bits_b++;
@@ -217,15 +220,17 @@ void addCounts(H264FeatureContext *fc, int qp, int n, int len) {
   if (sl == TYPE_I_SLICE) return;
   
 //   simulate_hiding_plusminus(fc, blocknum, THRESHOLD);
-//   simulate_hiding_f5(fc, blocknum, THRESHOLD);
-  simulate_hiding_plusminus(fc, blocknum, THRESHOLD);
+  simulate_hiding_f5(fc, blocknum, THRESHOLD);
+//   simulate_hiding_plusminus(fc, blocknum, THRESHOLD);
   
   // histograms
   for (i = 0; i < len; i++) { // num_coefs[blocknum]
     coef_index = tape[i];
     if (coef_index != 0) {
-      if (sl == TYPE_P_SLICE)
+      if (sl == TYPE_P_SLICE) {
 	fc->num_coefs_p++;
+	fc->num_coefs_b++;
+      }
       else if (sl == TYPE_B_SLICE)
 	fc->num_coefs_b++;
     }
@@ -238,6 +243,7 @@ void addCounts(H264FeatureContext *fc, int qp, int n, int len) {
     if (coef_index > 2*ranges[blocknum][i]) continue; // -1
 //     }
     fc->vec->histograms[sl][qp_index][blocknum][i][coef_index]++;
+    if (sl == TYPE_P_SLICE) fc->vec->histograms[1][qp_index][blocknum][i][coef_index]++; // B is now P+B
   }
   //pairs
   for (i = 0; i < len-1; i++) { // num_coefs[blocknum]
@@ -246,6 +252,7 @@ void addCounts(H264FeatureContext *fc, int qp, int n, int len) {
     if (l < 0 || l > 2*ranges[blocknum][0]) continue;
     if (r < 0 || r > 2*ranges[blocknum][1]) continue;
     fc->vec->pairs[sl][qp_index][blocknum][l][r]++;
+    if (sl == TYPE_P_SLICE) fc->vec->pairs[1][qp_index][blocknum][l][r]++;
   }
   // UvsV
   if (n == 49) {
@@ -259,6 +266,7 @@ void addCounts(H264FeatureContext *fc, int qp, int n, int len) {
       if (l < 0 || l > 2*ranges[1][0]) continue;
       if (r < 0 || r > 2*ranges[1][0]) continue;
       fc->vec->uvsv[sl][qp_index][0][l][r]++;
+      if (sl == TYPE_P_SLICE) fc->vec->uvsv[1][qp_index][0][l][r]++;
     }
     fc->seenUs[0] = 0;
   }
@@ -272,6 +280,7 @@ void addCounts(H264FeatureContext *fc, int qp, int n, int len) {
       if (l < 0 || l > 2*ranges[2][i]) continue;
       if (r < 0 || r > 2*ranges[2][i]) continue;
       fc->vec->uvsv[sl][qp_index][i+1][l][r]++;
+      if (sl == TYPE_P_SLICE) fc->vec->uvsv[1][qp_index][i+1][l][r]++;
     }
     fc->seenUs[n-31] = 0;
   }
