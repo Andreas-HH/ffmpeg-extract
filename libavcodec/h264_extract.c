@@ -91,10 +91,10 @@ void simulate_hiding_f5(H264FeatureContext* fc, int blocknum, int thresh) {
   if (blocknum == -1)
     return;
   
-  if (fc->accept_blocks == 1 && blocknum > 1) {
+  if (fc->accept_blocks == 1 && blocknum > 0) {
     local_p *= FRAC;
   }
-  if (fc->accept_blocks > 1 && blocknum == 1) {
+  if (fc->accept_blocks == 6 && blocknum == 0) {
     local_p *= FRAC;
   }
   
