@@ -82,22 +82,35 @@ void simulate_hiding_f5(H264FeatureContext* fc, int blocknum, int thresh) {
   int *coefs = fc->tape;
   int min;
   double r;
+  double local_p = fc->p_hide;
   int sl = fc->slice_type;
   
-  if (!(fc->accept_blocks & (1 << blocknum))) {
+//   if (!(fc->accept_blocks & (1 << blocknum))) {
+//     return;
+//   }
+  if (blocknum == -1)
     return;
+  
+  if (fc->accept_blocks == 1 && blocknum > 1) {
+    local_p *= FRAC;
+  }
+  if (fc->accept_blocks > 1 && blocknum == 1) {
+    local_p *= FRAC;
   }
   
   switch (blocknum) {
     case 0:
+//       local_p *= FRAC_L;
       min = MIN_COEF-1;
       break;
     case 1:
+//       local_p *= FRAC_C;
       if (MIN_COEF > 1) 
 	return; // we only have first coefficients here
       min = 0;
       break;
     case 2:
+//       local_p *= FRAC_C;
       min = max(MIN_COEF-2, 0);
       break;
   }
@@ -105,7 +118,7 @@ void simulate_hiding_f5(H264FeatureContext* fc, int blocknum, int thresh) {
   for (i = min; i < num_coefs[blocknum]; i++) {
     if (coefs[i]<=thresh && coefs[i]>=-thresh) continue;
     r = (((double) rand()) / ((double) RAND_MAX));
-    if (r < fc->p_hide) {
+    if (r < local_p) {
       switch (sl) {
 	case TYPE_P_SLICE:
 	  fc->hidden_bits_p++;
@@ -221,7 +234,7 @@ void addCounts(H264FeatureContext *fc, int qp, int n, int len) {
   
 //   simulate_hiding_plusminus(fc, blocknum, THRESHOLD);
   simulate_hiding_f5(fc, blocknum, THRESHOLD);
-//   simulate_hiding_plusminus(fc, blocknum, THRESHOLD);
+//   simulate_hiding_lsb(fc, blocknum, THRESHOLD);
   
   // histograms
   for (i = 0; i < len; i++) { // num_coefs[blocknum]
@@ -252,7 +265,7 @@ void addCounts(H264FeatureContext *fc, int qp, int n, int len) {
     if (l < 0 || l > 2*ranges[blocknum][0]) continue;
     if (r < 0 || r > 2*ranges[blocknum][1]) continue;
     fc->vec->pairs[sl][qp_index][blocknum][l][r]++;
-    if (sl == TYPE_P_SLICE) fc->vec->pairs[1][qp_index][blocknum][l][r]++;
+//     if (sl == TYPE_P_SLICE) fc->vec->pairs[1][qp_index][blocknum][l][r]++;
   }
   // UvsV
   if (n == 49) {
@@ -266,7 +279,7 @@ void addCounts(H264FeatureContext *fc, int qp, int n, int len) {
       if (l < 0 || l > 2*ranges[1][0]) continue;
       if (r < 0 || r > 2*ranges[1][0]) continue;
       fc->vec->uvsv[sl][qp_index][0][l][r]++;
-      if (sl == TYPE_P_SLICE) fc->vec->uvsv[1][qp_index][0][l][r]++;
+//       if (sl == TYPE_P_SLICE) fc->vec->uvsv[1][qp_index][0][l][r]++;
     }
     fc->seenUs[0] = 0;
   }
@@ -280,7 +293,7 @@ void addCounts(H264FeatureContext *fc, int qp, int n, int len) {
       if (l < 0 || l > 2*ranges[2][i]) continue;
       if (r < 0 || r > 2*ranges[2][i]) continue;
       fc->vec->uvsv[sl][qp_index][i+1][l][r]++;
-      if (sl == TYPE_P_SLICE) fc->vec->uvsv[1][qp_index][i+1][l][r]++;
+//       if (sl == TYPE_P_SLICE) fc->vec->uvsv[1][qp_index][i+1][l][r]++;
     }
     fc->seenUs[n-31] = 0;
   }
@@ -296,19 +309,26 @@ void storeFeatureVectors(H264FeatureContext* fc) {
     return;
   }
   
+  for (i = 0; i < fc->vec->vector_histograms_dim; i++)
+    fc->vec->vector_histograms[i] = 0ul;
+  for (i = 0; i < fc->vec->vector_pairs_dim; i++)
+    fc->vec->vector_pairs[i] = 0ul;
+  for (i = 0; i < fc->vec->vector_uvsv_dim; i++)
+    fc->vec->vector_uvsv[i] = 0ul;
+  N_h = 0ull;
+  N_p = 0ull;
+  N_u = 0ull;
+  
   for (sl = 0; sl < 2; sl++) {  // DROPPING B-FRAMES !!!
     count_h = 0ull;
     count_p = 0ull;
     count_u = 0ull;
-    N_h = 0ull;
-    N_p = 0ull;
-    N_u = 0ull;
     for (i = 0; i < QP_RANGE; i++) {
       for (j = 0; j < 3; j++) {
         // histograms
 	for (k = 0; k < num_coefs[j]; k++) {
 	  for (l = 0; l < 2*ranges[j][k]+1; l++) {
-	    fc->vec->vector_histograms[count_h] = (double) fc->vec->histograms[sl][i][j][k][l]; // (double) 
+	    fc->vec->vector_histograms[count_h] += fc->vec->histograms[sl][i][j][k][l]; // (double) 
 	    count_h++;
 	    N_h += fc->vec->histograms[sl][i][j][k][l];
 // 	    fc->max_element = max(fc->max_element, fc->vec->histograms[sl][i][j][k][l]);
@@ -319,7 +339,7 @@ void storeFeatureVectors(H264FeatureContext* fc) {
 	  for (l = 0; l < 2*ranges[j][1]+1; l++) {
 // 	    if (k == ranges[j][0] && l == ranges[j][1]) continue; // 00: &&; 0x x0: ||
   //            printf("(%i, %i)\n", count_h, count_p);
-	    fc->vec->vector_pairs[count_p] = fc->vec->pairs[sl][i][j][k][l]; // (double) 
+	    fc->vec->vector_pairs[count_p] += fc->vec->pairs[sl][i][j][k][l]; // (double) 
 	    count_p++;
 	    N_p += fc->vec->pairs[sl][i][j][k][l];
 // 	    fc->max_element = max(fc->max_element, fc->vec->pairs[sl][i][j][k][l]);
@@ -329,7 +349,7 @@ void storeFeatureVectors(H264FeatureContext* fc) {
       // UvsV
       for (k = 0; k < 2*ranges[1][0]+1; k++) {
 	for (l = 0; l < 2*ranges[1][0]+1; l++) {
-	  fc->vec->vector_uvsv[count_u] = fc->vec->uvsv[sl][i][0][k][l];
+	  fc->vec->vector_uvsv[count_u] += fc->vec->uvsv[sl][i][0][k][l];
 	  count_u++;
 	  N_u += fc->vec->uvsv[sl][i][0][k][l];
 	}
@@ -338,7 +358,7 @@ void storeFeatureVectors(H264FeatureContext* fc) {
 	if (ranges[2][j-1] == 0) break;
 	for (k = 0; k < 2*ranges[2][j-1]+1; k++) {
 	  for (l = 0; l < 2*ranges[2][j-1]+1; l++) {
-	    fc->vec->vector_uvsv[count_u] = fc->vec->uvsv[sl][i][j-1][k][l];
+	    fc->vec->vector_uvsv[count_u] += fc->vec->uvsv[sl][i][j-1][k][l];
 	    count_u++;
 	    N_u += fc->vec->uvsv[sl][i][j-1][k][l];
 	  }

@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define METHOD                 10 // 0 = clean, 1=pm
+#define METHOD                 44 // 0 = clean, 1=pm
 #define QP_RANGE               1
 #define QP_OFFSET              16
 #define QP_DELTA               4
@@ -20,9 +20,11 @@
 #define ACCEPT_C               6
 // #define MAX_RATE               0.24
 // #define NUM_BINS               12
+#define FRAC                   0.4
+// #define FRAC_C                 1.
 #define PROB_DELTA             0.001
 #define STEGF                  10
-#define THRESHOLD              1
+#define THRESHOLD              0
 #define MIN_COEF               1   // this counts from 1, coef 1 is DC coef
 // #define ACCEPT                 1
 
